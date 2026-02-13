@@ -32,10 +32,10 @@ def analyze_image(image_bytes: bytes, query: str = "Write code to count the exac
         contents=[image_part, query],
         config=types.GenerateContentConfig(
             temperature=0,
-            # CODELAB STEP 1: Uncomment to enable deep reasoning
-            thinking_config=types.ThinkingConfig(
-                thinking_level=types.ThinkingLevel.HIGH  # Production: use MEDIUM to reduce cost
-            ),
+            # CODELAB STEP 1: Uncomment to enable deep reasoning (requires google-genai SDK >= 0.3.0)
+            # thinking_config=types.ThinkingConfig(
+            #     thinking_level=types.ThinkingLevel.HIGH  # Production: use MEDIUM to reduce cost
+            # ),
             # CODELAB STEP 2: Uncomment to enable code execution
             tools=[types.Tool(code_execution=types.ToolCodeExecution())]
         ),
