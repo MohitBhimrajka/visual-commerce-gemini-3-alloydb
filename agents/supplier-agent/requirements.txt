@@ -1,0 +1,6 @@
+a2a-sdk[http-server]
+psycopg2-binary
+pgvector
+uvicorn
+google-cloud-aiplatform
+python-dotenv

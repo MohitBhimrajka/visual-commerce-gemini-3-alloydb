@@ -1,0 +1,5 @@
+Place a warehouse shelf image named warehouse_shelf.png here for standalone
+verification: python agent.py
+
+Any PNG or JPG of boxes on shelves works. The agent will count objects via
+Gemini 3 Flash code execution.

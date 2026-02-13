@@ -1,0 +1,35 @@
+# Environment configuration (contains secrets)
+.env
+
+# Log files
+logs/
+
+# AlloyDB Auth Proxy binary
+alloydb-auth-proxy
+
+# Easy AlloyDB Setup tool (cloned during setup)
+easy-alloydb-setup/
+
+# Python virtual environments
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp

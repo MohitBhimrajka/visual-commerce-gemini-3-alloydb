@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+websockets
+a2a-sdk
+httpx
+Pillow
+python-multipart
+python-dotenv

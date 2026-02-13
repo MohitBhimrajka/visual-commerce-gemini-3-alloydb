@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomous Supply Chain Control Tower</title>
+    
+    <!-- Custom styles -->
+    <link rel="stylesheet" href="/static/styles.css">
+    
+    <!-- Alpine.js for reactivity -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Highlight.js for code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body x-data="appState()">
+    
+    <!-- Header -->
+    <header style="background: var(--bg); border-bottom: 1px solid var(--border); padding: 1.5rem 0;">
+        <div style="max-width: 1200px; margin: 0 auto; padding: 0 1.5rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <h1 class="hero-title" style="font-size: 1.875rem; margin-bottom: 0.25rem;">Autonomous Supply Chain Control Tower</h1>
+                    <p class="hero-subtitle" style="font-size: 0.875rem;">Powered by Gemini 3 Flash, AlloyDB AI, and A2A Protocol</p>
+                </div>
+                <div class="connection-status no-print">
+                    <div class="connection-dot" :class="wsConnected ? 'connected' : 'disconnected'"></div>
+                    <span x-text="wsConnected ? 'Connected' : 'Disconnected'"></span>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <main style="max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem;">
+        
+        <!-- Hero Section with Upload -->
+        <section class="hero-section" style="margin-bottom: 3rem;">
+            <div style="margin-bottom: 2rem;">
+                <div class="upload-area"
+                     :class="{'drag-over': isDragging}"
+                     @dragover.prevent="isDragging = true"
+                     @dragleave.prevent="isDragging = false"
+                     @drop.prevent="handleDrop($event)">
+                    
+                    <template x-if="!uploadedImage">
+                        <div>
+                            <svg style="margin: 0 auto; width: 3rem; height: 3rem; color: var(--text-tertiary);" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <div style="margin-top: 1rem;">
+                                <label for="file-upload" style="cursor: pointer;">
+                                    <span style="font-size: 0.875rem; color: var(--text-secondary);">
+                                        <span style="font-weight: 600; color: var(--primary);">Upload a file</span>
+                                        or drag and drop
+                                    </span>
+                                    <p style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 0.25rem;">PNG, JPG, JPEG up to 10MB</p>
+                                </label>
+                                <input id="file-upload" type="file" style="display: none;" accept="image/*" @change="handleFileSelect($event)">
+                            </div>
+                        </div>
+                    </template>
+                    
+                    <template x-if="uploadedImage">
+                        <div style="position: relative;">
+                            <img :src="uploadedImage" alt="Uploaded warehouse image" style="max-height: 24rem; margin: 0 auto; border-radius: var(--radius); box-shadow: var(--shadow-lg);">
+                            <button @click="resetUpload()" style="position: absolute; top: 0.5rem; right: 0.5rem; background: var(--error); color: white; border-radius: 50%; padding: 0.5rem; border: none; cursor: pointer; transition: all var(--transition);">
+                                <svg style="width: 1.25rem; height: 1.25rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </template>
+                </div>
+                
+                <div style="margin-top: 1.5rem; text-align: center; display: flex; gap: 1rem; justify-content: center; align-items: center;">
+                    <button @click="startAnalysis()" 
+                            :disabled="!uploadedImage || isProcessing"
+                            class="btn btn-primary"
+                            style="font-size: 1rem; padding: 0.875rem 2rem;">
+                        <template x-if="!isProcessing">
+                            <span>Initiate Autonomous Workflow</span>
+                        </template>
+                        <template x-if="isProcessing">
+                            <span style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span class="spinner"></span>
+                                Processing...
+                            </span>
+                        </template>
+                    </button>
+                    <button @click="showSampleModal = true" class="btn btn-secondary no-print">
+                        Browse Sample Images
+                    </button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Progress Bar -->
+        <section x-show="isProcessing || messages.length > 0" style="margin-bottom: 2rem;">
+            <div class="glass-card" style="padding: 1.5rem;">
+                <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-primary);">Workflow Progress</h2>
+                <div class="progress-container">
+                    <div class="progress-bar" :style="`width: ${progressPercent}%`"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 1rem;">
+                    <template x-for="(phase, index) in phases" :key="index">
+                        <div style="text-align: center; flex: 1;">
+                            <div style="font-size: 0.75rem; color: var(--text-tertiary);" :style="phase.active ? 'color: var(--primary); font-weight: 600;' : ''" x-text="phase.label"></div>
+                            <div style="margin-top: 0.25rem; font-size: 1rem;" x-show="phase.completed">✓</div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Agent Cards with Tabs -->
+        <section x-show="isProcessing || messages.length > 0" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+            
+            <!-- Vision Agent Card -->
+            <div class="glass-card agent-card vision" style="padding: 1.5rem;">
+                <div class="agent-header">
+                    <div class="agent-icon" style="background: rgba(91, 141, 239, 0.1);">
+                        <span style="font-size: 1.5rem;">👁️</span>
+                    </div>
+                    <div style="flex: 1;">
+                        <h3 style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">Vision Agent</h3>
+                        <p style="font-size: 0.75rem; color: var(--text-secondary);">Gemini 3 Flash</p>
+                    </div>
+                    <div x-show="agents.vision.status === 'thinking'" class="agent-status">
+                        <div class="status-dot thinking" style="animation-delay: 0ms;"></div>
+                        <div class="status-dot thinking" style="animation-delay: 200ms;"></div>
+                        <div class="status-dot thinking" style="animation-delay: 400ms;"></div>
+                    </div>
+                </div>
+                
+                <div class="tabs">
+                    <button @click="agents.vision.activeTab = 'status'" 
+                            class="tab-button"
+                            :class="{'active': agents.vision.activeTab === 'status'}">
+                        Status
+                    </button>
+                    <button @click="agents.vision.activeTab = 'thinking'" 
+                            class="tab-button"
+                            :class="{'active': agents.vision.activeTab === 'thinking'}">
+                        Thinking
+                    </button>
+                </div>
+                
+                <div x-show="agents.vision.activeTab === 'status'" class="tab-panel">
+                    <p style="font-size: 0.875rem; color: var(--text-primary);" x-text="agents.vision.message"></p>
+                    <div x-show="agents.vision.code" class="code-block custom-scrollbar" style="margin-top: 1rem; max-height: 200px; overflow-y: auto;">
+                        <pre><code x-html="agents.vision.code"></code></pre>
+                    </div>
+                </div>
+                
+                <div x-show="agents.vision.activeTab === 'thinking'" class="tab-panel">
+                    <div class="thinking-steps" x-show="agents.vision.thinkingSteps && agents.vision.thinkingSteps.length > 0">
+                        <template x-for="step in agents.vision.thinkingSteps" :key="step.step">
+                            <div class="thinking-step">
+                                <span class="step-number" x-text="step.step"></span>
+                                <div class="step-content">
+                                    <p class="step-thought" x-text="step.thought"></p>
+                                    <span class="step-timestamp" x-text="step.timestamp"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    <p x-show="!agents.vision.thinkingSteps || agents.vision.thinkingSteps.length === 0" style="font-size: 0.875rem; color: var(--text-tertiary);">No thinking steps available yet</p>
+                </div>
+            </div>
+            
+            <!-- Supplier Agent Card -->
+            <div class="glass-card agent-card supplier" style="padding: 1.5rem;">
+                <div class="agent-header">
+                    <div class="agent-icon" style="background: rgba(139, 127, 232, 0.1);">
+                        <span style="font-size: 1.5rem;">🧠</span>
+                    </div>
+                    <div style="flex: 1;">
+                        <h3 style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">Supplier Agent</h3>
+                        <p style="font-size: 0.75rem; color: var(--text-secondary);">AlloyDB ScaNN</p>
+                    </div>
+                    <div x-show="agents.memory.status === 'thinking'" class="agent-status">
+                        <div class="status-dot thinking" style="animation-delay: 0ms;"></div>
+                        <div class="status-dot thinking" style="animation-delay: 200ms;"></div>
+                        <div class="status-dot thinking" style="animation-delay: 400ms;"></div>
+                    </div>
+                </div>
+                
+                <div class="tabs">
+                    <button @click="agents.memory.activeTab = 'status'" 
+                            class="tab-button"
+                            :class="{'active': agents.memory.activeTab === 'status'}">
+                        Status
+                    </button>
+                    <button @click="agents.memory.activeTab = 'details'" 
+                            class="tab-button"
+                            :class="{'active': agents.memory.activeTab === 'details'}">
+                        Details
+                    </button>
+                </div>
+                
+                <div x-show="agents.memory.activeTab === 'status'" class="tab-panel">
+                    <p style="font-size: 0.875rem; color: var(--text-primary);" x-text="agents.memory.message"></p>
+                </div>
+                
+                <div x-show="agents.memory.activeTab === 'details'" class="tab-panel">
+                    <div x-show="agents.memory.part" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.875rem;">
+                            <span style="color: var(--text-secondary);">Part:</span>
+                            <span style="font-weight: 600; color: var(--text-primary);" x-text="agents.memory.part"></span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.875rem;">
+                            <span style="color: var(--text-secondary);">Supplier:</span>
+                            <span style="font-weight: 600; color: var(--text-primary);" x-text="agents.memory.supplier"></span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.875rem;">
+                            <span style="color: var(--text-secondary);">Confidence:</span>
+                            <span style="font-weight: 600; color: var(--success);" x-text="agents.memory.confidence"></span>
+                        </div>
+                    </div>
+                    <p x-show="!agents.memory.part" style="font-size: 0.875rem; color: var(--text-tertiary);">No match details available yet</p>
+                </div>
+            </div>
+            
+            <!-- Action Agent Card -->
+            <div class="glass-card agent-card action" style="padding: 1.5rem;">
+                <div class="agent-header">
+                    <div class="agent-icon" style="background: rgba(61, 190, 170, 0.1);">
+                        <span style="font-size: 1.5rem;">✅</span>
+                    </div>
+                    <div style="flex: 1;">
+                        <h3 style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">Action Agent</h3>
+                        <p style="font-size: 0.75rem; color: var(--text-secondary);">Autonomous Order</p>
+                    </div>
+                    <div x-show="agents.action.status === 'thinking'" class="agent-status">
+                        <div class="status-dot thinking" style="animation-delay: 0ms;"></div>
+                        <div class="status-dot thinking" style="animation-delay: 200ms;"></div>
+                        <div class="status-dot thinking" style="animation-delay: 400ms;"></div>
+                    </div>
+                </div>
+                
+                <div class="tabs">
+                    <button @click="agents.action.activeTab = 'status'" 
+                            class="tab-button"
+                            :class="{'active': agents.action.activeTab === 'status'}">
+                        Status
+                    </button>
+                    <button @click="agents.action.activeTab = 'details'" 
+                            class="tab-button"
+                            :class="{'active': agents.action.activeTab === 'details'}">
+                        Details
+                    </button>
+                </div>
+                
+                <div x-show="agents.action.activeTab === 'status'" class="tab-panel">
+                    <p style="font-size: 0.875rem; color: var(--text-primary);" x-text="agents.action.message"></p>
+                </div>
+                
+                <div x-show="agents.action.activeTab === 'details'" class="tab-panel">
+                    <div x-show="agents.action.orderId" style="padding: 1rem; background: rgba(61, 190, 170, 0.1); border: 1px solid var(--success); border-radius: var(--radius-sm);">
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Order ID</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--success);" x-text="agents.action.orderId"></div>
+                    </div>
+                    <p x-show="!agents.action.orderId" style="font-size: 0.875rem; color: var(--text-tertiary);">No order placed yet</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Message Stream -->
+        <section x-show="messages.length > 0" class="glass-card" style="padding: 1.5rem;">
+            <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-primary);">Agent Communication</h2>
+            <div class="message-stream custom-scrollbar" style="max-height: 400px; overflow-y: auto;" x-ref="chatContainer">
+                <template x-for="(msg, index) in messages" :key="index">
+                    <div class="message" :class="getMessagePosition(msg.type)">
+                        <div class="message-bubble">
+                            <div class="message-header">
+                                <span class="message-sender" x-text="msg.type"></span>
+                                <span class="message-timestamp" x-text="new Date(msg.timestamp).toLocaleTimeString()"></span>
+                            </div>
+                            <p class="message-content" x-text="msg.message"></p>
+                            <div x-show="msg.details" style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-secondary); padding: 0.5rem; background: var(--bg-subtle); border-radius: var(--radius-sm);" x-text="msg.details"></div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </section>
+        
+    </main>
+    
+    <!-- Sample Images Modal -->
+    <div x-show="showSampleModal" 
+         class="modal-overlay" 
+         @click.self="showSampleModal = false"
+         style="display: none;"
+         x-transition:enter="animation: fadeIn 200ms"
+         x-transition:leave="animation: fadeIn 200ms reverse">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h2 class="modal-title">Select a Sample Image</h2>
+                <button @click="showSampleModal = false" class="btn-close">
+                    <svg style="width: 1.25rem; height: 1.25rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="image-grid">
+                <template x-for="img in sampleImages" :key="img.name">
+                    <div @click="selectSampleImage(img.name)" class="image-card">
+                        <img :src="`/api/test-image/${img.name}`" :alt="img.name">
+                        <div class="image-card-label" x-text="img.name"></div>
+                    </div>
+                </template>
+            </div>
+            <div x-show="sampleImages.length === 0" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                <p>No sample images available</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Application JavaScript -->
+    <script src="/static/app.js"></script>
+    
+</body>
+</html>

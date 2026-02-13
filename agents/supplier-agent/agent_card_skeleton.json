@@ -1,0 +1,14 @@
+{
+  "name": "___FILL: Your Supplier Agent Name (e.g., Acme Supplier Agent)___",
+  "description": "___FILL: What does this agent do? (e.g., Autonomous fulfillment for industrial parts)___",
+  "version": "1.0.0",
+  "skills": [
+    {
+      "id": "search_inventory",
+      "name": "Search Inventory",
+      "description": "Searches the warehouse database for semantic matches using AlloyDB ScaNN vector search.",
+      "tags": ["inventory", "search", "alloydb"],
+      "examples": ["Find stock for Industrial Widget X-9", "Who supplies ball bearings?"]
+    }
+  ]
+}
