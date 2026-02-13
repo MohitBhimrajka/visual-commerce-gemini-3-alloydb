@@ -139,7 +139,8 @@ You'll see two commented blocks. **Uncomment both:**
 1. The `thinking_config` block:
 ```python
 thinking_config=types.ThinkingConfig(
-    thinking_level="high"  # Valid: "minimal", "low", "medium", "high". Use "medium" in production
+    thinking_budget=-1,  # -1 = dynamic (recommended), 0 = off, or set specific token count
+    include_thoughts=True  # Include thought summaries for debugging
 ),
 ```
 

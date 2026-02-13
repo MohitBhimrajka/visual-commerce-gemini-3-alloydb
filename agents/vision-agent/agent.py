@@ -34,7 +34,8 @@ def analyze_image(image_bytes: bytes, query: str = "Write code to count the exac
             temperature=0,
             # CODELAB STEP 1: Uncomment to enable deep reasoning
             thinking_config=types.ThinkingConfig(
-                thinking_level="high"  # Valid: "minimal", "low", "medium", "high". Production: use "medium"
+                thinking_budget=-1,  # -1 = dynamic (recommended), 0 = off, or set specific token count
+                include_thoughts=True  # Include thought summaries in response
             ),
             # CODELAB STEP 2: Uncomment to enable code execution
             tools=[types.Tool(code_execution=types.ToolCodeExecution())]
