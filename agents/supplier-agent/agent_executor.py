@@ -87,7 +87,9 @@ class SupplierAgentExecutor(AgentExecutor):
             "supplier": supplier_name,
             "match_confidence": confidence,
         }
-        await event_queue.enqueue_event(new_agent_text_message(json.dumps(out, indent=2)))
+        message_text = json.dumps(out, indent=2)
+        print(f"[DEBUG] Sending message to frontend: {message_text}", file=sys.stderr)
+        await event_queue.enqueue_event(new_agent_text_message(message_text))
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         raise NotImplementedError("cancel not supported")
