@@ -73,13 +73,21 @@ def extract_text_from_response(response) -> str:
     text = ""
     if hasattr(response, "artifact") and response.artifact:
         for part in getattr(response.artifact, "parts", []) or []:
-            if hasattr(part, "text"):
-                text += part.text
+            # Try both part.text and part.root.text (API structure varies)
+            part_text = getattr(part, "text", None)
+            if not part_text and hasattr(part, "root"):
+                part_text = getattr(part.root, "text", None)
+            if part_text:
+                text += part_text
     if not text and hasattr(response, "messages"):
         for msg in (response.messages or []):
             for part in getattr(msg, "parts", []) or []:
-                if hasattr(part, "text"):
-                    text += part.text
+                # Try both part.text and part.root.text (API structure varies)
+                part_text = getattr(part, "text", None)
+                if not part_text and hasattr(part, "root"):
+                    part_text = getattr(part.root, "text", None)
+                if part_text:
+                    text += part_text
     return text
 
 
