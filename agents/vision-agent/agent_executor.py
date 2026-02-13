@@ -23,7 +23,10 @@ class VisionAgentExecutor(AgentExecutor):
         query = "Write code to count the exact number of boxes on this shelf."
 
         for p in parts:
+            # Try both p.text and p.root.text (API structure varies)
             text = getattr(p, "text", None)
+            if not text and hasattr(p, "root"):
+                text = getattr(p.root, "text", None)
             if text:
                 try:
                     data = json.loads(text)
