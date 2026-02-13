@@ -43,6 +43,14 @@ In the Cloud Shell terminal at the bottom of your screen, run:
 - The script will detect existing AlloyDB instances and skip provisioning
 - You won't need to redeploy infrastructure - it picks up where you left off
 
+**Common issue - Binary corruption:**
+If you see "Bus error" when starting the Auth Proxy:
+```bash
+rm alloydb-auth-proxy
+./setup.sh
+```
+The script will re-download the correct binary for your system.
+
 ## Access the Setup UI
 
 Once you see the message **"Starting infrastructure setup UI..."**:

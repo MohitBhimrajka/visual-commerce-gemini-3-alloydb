@@ -668,9 +668,12 @@ esac
 
 PROXY_BINARY="$SCRIPT_DIR/alloydb-auth-proxy"
 
-# Download proxy if needed
-if [ ! -f "$PROXY_BINARY" ]; then
+# Function to download proxy
+download_proxy() {
     echo "📥 Downloading Auth Proxy ${PROXY_VERSION} for $OS/$ARCH..."
+    # Remove old binary if exists
+    rm -f "$PROXY_BINARY"
+    
     if command -v wget &> /dev/null; then
         wget -q "$PROXY_URL" -O "$PROXY_BINARY" 2>&1
     else
@@ -678,10 +681,29 @@ if [ ! -f "$PROXY_BINARY" ]; then
     fi
     chmod +x "$PROXY_BINARY"
     echo "✅ Downloaded successfully"
+}
+
+# Download proxy if needed or validate existing
+if [ ! -f "$PROXY_BINARY" ]; then
+    download_proxy
 else
     echo "✅ Auth Proxy binary already exists"
-    # Ensure it's executable (in case permissions were lost)
+    # Ensure it's executable
     chmod +x "$PROXY_BINARY" 2>/dev/null || true
+    
+    # Quick validation: check if binary is valid
+    if ! "$PROXY_BINARY" --version > /dev/null 2>&1; then
+        echo "⚠️  Existing binary appears corrupted or incompatible"
+        echo "   Architecture: $OS/$ARCH"
+        echo ""
+        read -p "   Re-download Auth Proxy? (Y/n): " -n 1 -r
+        echo ""
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            download_proxy
+        else
+            echo "⚠️  Continuing with existing binary (may fail)"
+        fi
+    fi
 fi
 
 echo "✅ Using instance: ${INSTANCE_URI}"
@@ -796,14 +818,37 @@ for i in {1..30}; do
     # Check if process died
     if ! kill -0 $PROXY_PID 2>/dev/null; then
         echo ""
-        echo "❌ Auth Proxy process died. Check logs/proxy.log for details:"
-        tail -20 "$SCRIPT_DIR/logs/proxy.log"
+        echo "❌ Auth Proxy process died. Checking logs..."
         echo ""
-        echo "Common causes:"
-        echo "  1. Missing Application Default Credentials"
-        echo "     Fix: gcloud auth application-default login"
-        echo "  2. Insufficient permissions on your account"
-        echo "  3. AlloyDB API not enabled properly"
+        
+        # Check for specific error patterns
+        if grep -q "Bus error" "$SCRIPT_DIR/logs/proxy.log" 2>/dev/null; then
+            echo "⚠️  BINARY CORRUPTION DETECTED (Bus error)"
+            echo ""
+            echo "The Auth Proxy binary is corrupted or incompatible with your system."
+            echo "Architecture: $OS/$ARCH"
+            echo ""
+            echo "FIX: Re-download the correct binary:"
+            echo "  1. Remove corrupted binary: rm alloydb-auth-proxy"
+            echo "  2. Re-run setup: ./setup.sh"
+            echo ""
+            echo "Or manually download:"
+            echo "  wget $PROXY_URL -O alloydb-auth-proxy && chmod +x alloydb-auth-proxy"
+        elif grep -q "oauth2.*invalid token" "$SCRIPT_DIR/logs/proxy.log" 2>/dev/null; then
+            echo "⚠️  AUTHENTICATION ERROR"
+            echo ""
+            echo "FIX: Run this command and re-run setup:"
+            echo "  gcloud auth application-default login --no-launch-browser"
+        else
+            echo "📋 Last 15 lines from logs/proxy.log:"
+            tail -15 "$SCRIPT_DIR/logs/proxy.log"
+            echo ""
+            echo "Common causes:"
+            echo "  1. Binary corruption (Bus error) - Delete and re-download"
+            echo "  2. Missing credentials - Run: gcloud auth application-default login"
+            echo "  3. Insufficient permissions - Check IAM roles"
+            echo "  4. AlloyDB API not enabled properly"
+        fi
         exit 1
     fi
     

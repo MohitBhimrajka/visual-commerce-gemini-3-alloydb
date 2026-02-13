@@ -39,15 +39,21 @@ class SupplierAgentExecutor(AgentExecutor):
             )
             return
 
-        if embedding:
-            emb = embedding
-        else:
-            emb = get_embedding(query)
+        try:
+            if embedding:
+                emb = embedding
+            else:
+                emb = get_embedding(query)
 
-        result = find_supplier(emb)
-        if not result:
+            result = find_supplier(emb)
+            if not result:
+                await event_queue.enqueue_event(
+                    new_agent_text_message("No matching supplier found in inventory.")
+                )
+                return
+        except Exception as e:
             await event_queue.enqueue_event(
-                new_agent_text_message("No matching supplier found in inventory.")
+                new_agent_text_message(f"Database error: {str(e)}")
             )
             return
 
