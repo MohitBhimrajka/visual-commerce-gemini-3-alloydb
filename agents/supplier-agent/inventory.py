@@ -31,7 +31,6 @@ def find_supplier(embedding_vector: list[float]) -> tuple | None:
     Find the nearest supplier for the given part embedding using ScaNN.
     """
     import sys
-    print(f"[DEBUG] find_supplier called with embedding length: {len(embedding_vector)}", file=sys.stderr)
     
     conn = get_connection()
     try:
@@ -44,14 +43,11 @@ def find_supplier(embedding_vector: list[float]) -> tuple | None:
             ORDER BY part_embedding <=> %s::vector
             LIMIT 1;
             """
-            print(f"[DEBUG] Executing SQL query with embedding", file=sys.stderr)
             cursor.execute(sql, (embedding_vector, embedding_vector))
-            result = cursor.fetchone()  # Fetch INSIDE with block
-            print(f"[DEBUG] Query result: {result}", file=sys.stderr)
-        # Cursor is now closed, but we have the result
-        return result  # Return OUTSIDE with block
+            result = cursor.fetchone()
+        return result
     except Exception as e:
-        print(f"[ERROR] Database query failed: {e}", file=sys.stderr)
+        print(f"[ERROR] AlloyDB query failed: {e}", file=sys.stderr)
         raise
     finally:
         conn.close()
@@ -66,18 +62,14 @@ def get_embedding(text: str) -> list[float]:
     from vertexai.language_models import TextEmbeddingModel
 
     project = os.environ.get("GOOGLE_CLOUD_PROJECT", "")
-    print(f"[DEBUG] get_embedding called with text: {text[:50]}...", file=sys.stderr)
-    print(f"[DEBUG] Using GCP project: {project}", file=sys.stderr)
     
     try:
         vertexai.init(project=project, location="us-central1")
         model = TextEmbeddingModel.from_pretrained("text-embedding-005")
         embeddings = model.get_embeddings([text])
-        embedding_values = embeddings[0].values
-        print(f"[DEBUG] Generated embedding with {len(embedding_values)} dimensions", file=sys.stderr)
-        return embedding_values
+        return embeddings[0].values
     except Exception as e:
-        print(f"[ERROR] Vertex AI embedding failed: {e}", file=sys.stderr)
+        print(f"[ERROR] Vertex AI embedding generation failed: {e}", file=sys.stderr)
         raise
 
 

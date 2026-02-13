@@ -17,7 +17,7 @@ The Control Tower frontend will automatically show these as "Sample Images" you 
 ### Standalone Testing
 ```bash
 cd agents/vision-agent
-python3 agent.py ../../test-images/warehouse_shelf_1.png
+python3 agent.py ../../assets/samples/warehouse_shelf_1.png
 ```
 
 ### Via Control Tower

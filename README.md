@@ -71,7 +71,9 @@ visual-commerce-gemini-3-alloydb/
 │   ├── seed.py                  # Database initialization
 │   └── seed_data.sql            # Schema definition
 │
-├── test-images/                 # Sample warehouse images for testing
+├── assets/                      # Project assets
+│   ├── architecture-diagram.png # System architecture diagram
+│   └── samples/                 # Sample warehouse images for testing
 │
 └── logs/                        # Runtime logs (gitignored)
     ├── proxy.log

@@ -18,6 +18,9 @@ SCRIPT_DIR = Path(__file__).parent
 SEED_SQL = SCRIPT_DIR / "seed_data.sql"
 
 SAMPLE_PARTS = [
+    ("Cardboard Shipping Box Large", "Packaging Solutions Inc", "Heavy-duty corrugated cardboard shipping container", 250),
+    ("Warehouse Storage Container", "Industrial Supply Co", "Stackable plastic storage bin with lid", 180),
+    ("Product Shipping Boxes", "Acme Packaging", "Medium corrugated boxes for warehouse storage", 320),
     ("Industrial Widget X-9", "Acme Corp", "Heavy-duty industrial coupling", 50),
     ("Precision Bolt M4", "Global Fasteners Inc", "Stainless steel allen bolt", 200),
     ("Hexagonal Nut M6", "Metro Supply Co", "Galvanized steel nut", 150),
@@ -26,6 +29,8 @@ SAMPLE_PARTS = [
     ("Rubber Gasket Small", "SealTech Industries", "Buna-N gasket", 120),
     ("Spring Tension 5kg", "Mechanical Parts Co", "Compression spring", 60),
     ("Bearing 6204", "Bearings Direct", "Deep groove ball bearing", 45),
+    ("Warehouse Shelf Boxes", "Storage Systems Ltd", "Standardized warehouse inventory boxes", 400),
+    ("Inventory Container Units", "Supply Chain Pros", "Modular storage units for warehouse", 95),
 ]
 
 

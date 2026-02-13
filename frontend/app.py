@@ -113,24 +113,29 @@ def compress_image(image_bytes: bytes, max_size_kb: int = 500) -> bytes:
 
 def extract_text_from_response(response) -> str:
     """Extract text from A2A response artifact or messages."""
+    import sys
     text = ""
+    
     if hasattr(response, "artifact") and response.artifact:
         for part in getattr(response.artifact, "parts", []) or []:
-            # Try both part.text and part.root.text (API structure varies)
             part_text = getattr(part, "text", None)
             if not part_text and hasattr(part, "root"):
                 part_text = getattr(part.root, "text", None)
             if part_text:
                 text += part_text
+    
     if not text and hasattr(response, "messages"):
         for msg in (response.messages or []):
             for part in getattr(msg, "parts", []) or []:
-                # Try both part.text and part.root.text (API structure varies)
                 part_text = getattr(part, "text", None)
                 if not part_text and hasattr(part, "root"):
                     part_text = getattr(part.root, "text", None)
                 if part_text:
                     text += part_text
+    
+    if not text:
+        print(f"[WARNING] Failed to extract text from A2A response", file=sys.stderr)
+    
     return text
 
 
@@ -196,7 +201,8 @@ async def run_workflow_with_events(image_bytes: bytes):
     Emits WebSocket events at each step for real-time UI updates.
     """
     
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    # Extended timeout for Vision Agent (Gemini 3 Flash with code execution can take 60-90s)
+    async with httpx.AsyncClient(timeout=270.0) as client:
         # Phase 0: Upload complete
         await manager.broadcast({
             "type": "upload_complete",
@@ -236,12 +242,16 @@ async def run_workflow_with_events(image_bytes: bytes):
                 "timestamp": asyncio.get_event_loop().time()
             })
             
-            # Compress image to stay under A2A protocol payload limits (~500KB)
-            compressed_image = compress_image(image_bytes, max_size_kb=500)
+            # Compress image to stay under A2A protocol payload limits
+            # Vision models work best with images under 1MB
+            compressed_image = compress_image(image_bytes, max_size_kb=800)
+            print(f"[INFO] Image compressed: {len(image_bytes)/1024:.1f} KB → {len(compressed_image)/1024:.1f} KB", file=sys.stderr)
+            
+            query_text = "Analyze this warehouse shelf image. Write code to: 1) Count the exact number of items/boxes, 2) Describe the type of items (boxes, containers, parts, etc.), 3) Note any visible labels or identifying features. Format: 'Found X [item type]. [Description]'"
             
             payload = json.dumps({
                 "image_base64": base64.b64encode(compressed_image).decode("utf-8"),
-                "query": "Write code to count the exact number of boxes on this shelf.",
+                "query": query_text,
             })
             
             request = SendMessageRequest(
@@ -321,8 +331,32 @@ async def run_workflow_with_events(image_bytes: bytes):
                 "timestamp": asyncio.get_event_loop().time()
             })
             
-            # Use the vision agent's analysis result as the search query
-            search_query = vision_text[:200] if vision_text else "warehouse inventory part"
+            # Extract search query from vision agent's analysis
+            import sys
+            import re
+            
+            # Try to extract "Search terms:" if present
+            search_query = None
+            if vision_text and "Search terms:" in vision_text:
+                match = re.search(r'Search terms:\s*([^\n]+)', vision_text)
+                if match:
+                    search_query = match.group(1).strip()
+                    print(f"[INFO] Using extracted search terms: {search_query[:100]}", file=sys.stderr)
+            
+            # Fallback: use first 150 chars of vision response (skip "Code output:" prefix)
+            if not search_query and vision_text:
+                text_to_search = vision_text
+                if "Code output:" in text_to_search:
+                    parts = text_to_search.split('\n\n', 1)
+                    if len(parts) > 1:
+                        text_to_search = parts[1]
+                search_query = text_to_search[:150].strip()
+            
+            # Last resort fallback
+            if not search_query:
+                search_query = "industrial warehouse inventory parts boxes containers"
+                print(f"[WARNING] Using fallback search query", file=sys.stderr)
+            
             supplier_payload = json.dumps({"query": search_query})
             supplier_request = SendMessageRequest(
                 id=str(uuid4()),
@@ -345,14 +379,38 @@ async def run_workflow_with_events(image_bytes: bytes):
                     supplier_name = supplier_data.get("supplier", "Unknown")
                     confidence = supplier_data.get("match_confidence", "N/A")
                     
-                    await manager.broadcast({
-                        "type": "memory_complete",
-                        "message": f"Match found: {part_name}",
-                        "part": part_name,
-                        "supplier": supplier_name,
-                        "confidence": confidence,
-                        "timestamp": asyncio.get_event_loop().time()
-                    })
+                    # Parse confidence percentage and check threshold
+                    confidence_value = 0.0
+                    if confidence and confidence != "N/A":
+                        try:
+                            confidence_value = float(confidence.strip('%'))
+                        except (ValueError, AttributeError):
+                            pass
+                    
+                    # Check confidence threshold (warn if < 50%)
+                    if confidence_value < 50.0:
+                        warning_msg = f"⚠️ Low confidence match ({confidence}). Vision analysis may need more specific details."
+                        print(f"[WARNING] Low confidence supplier match: {confidence_value}%", file=sys.stderr)
+                        await manager.broadcast({
+                            "type": "memory_complete",
+                            "message": warning_msg,
+                            "part": part_name,
+                            "supplier": supplier_name,
+                            "confidence": confidence,
+                            "low_confidence": True,
+                            "timestamp": asyncio.get_event_loop().time()
+                        })
+                    else:
+                        print(f"[INFO] Supplier match: {part_name} ({confidence})", file=sys.stderr)
+                        await manager.broadcast({
+                            "type": "memory_complete",
+                            "message": f"Match found: {part_name}",
+                            "part": part_name,
+                            "supplier": supplier_name,
+                            "confidence": confidence,
+                            "low_confidence": False,
+                            "timestamp": asyncio.get_event_loop().time()
+                        })
                     
                     # Emit thinking steps for Supplier Agent
                     supplier_thinking = extract_thinking_steps(supplier_text, "supplier")
@@ -391,9 +449,14 @@ async def run_workflow_with_events(image_bytes: bytes):
                 })
                 
         except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"\n[ERROR] Supplier Agent exception:", file=sys.stderr)
+            print(error_details, file=sys.stderr)
+            
             await manager.broadcast({
                 "type": "memory_error",
-                "message": f"Supplier Agent error: {str(e)}",
+                "message": f"Supplier Agent error: {str(e)}. Check that AlloyDB is running and accessible.",
                 "error": str(e),
                 "timestamp": asyncio.get_event_loop().time()
             })
@@ -452,8 +515,8 @@ async def health_check():
 
 @app.get("/api/test-images")
 async def list_test_images():
-    """List available test images from test-images folder."""
-    test_images_dir = REPO_ROOT / "test-images"
+    """List available test images from assets/samples folder."""
+    test_images_dir = REPO_ROOT / "assets" / "samples"
     
     if not test_images_dir.exists():
         return {"images": []}
@@ -472,7 +535,7 @@ async def list_test_images():
 @app.get("/api/test-image/{image_name}")
 async def get_test_image(image_name: str):
     """Serve a specific test image."""
-    test_images_dir = REPO_ROOT / "test-images"
+    test_images_dir = REPO_ROOT / "assets" / "samples"
     image_path = test_images_dir / image_name
     
     if not image_path.exists() or image_path.suffix.lower() not in ['.png', '.jpg', '.jpeg']:

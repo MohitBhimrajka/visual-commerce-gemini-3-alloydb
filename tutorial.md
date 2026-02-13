@@ -248,7 +248,7 @@ Time to see the agents in action!
 
 1. **Upload an image:**
    - Click the upload area or drag & drop
-   - Use a warehouse/shelf image (or sample images in `test-images/` folder)
+   - Use a warehouse/shelf image (or sample images in `assets/samples/` folder)
 
 2. **Click "Initiate Autonomous Workflow"**
 

@@ -211,14 +211,19 @@ function appState() {
                     
                 case 'memory_complete':
                     this.updatePhase(3, true, false);
-                    this.agents.memory.status = 'success';
-                    this.agents.memory.message = 'Match found ✓';
+                    // Check if this is a low confidence match
+                    if (data.low_confidence) {
+                        this.agents.memory.status = 'success'; // Still success, but with warning
+                        this.agents.memory.message = 'Low confidence match ⚠️';
+                    } else {
+                        this.agents.memory.status = 'success';
+                        this.agents.memory.message = 'Match found ✓';
+                    }
                     this.agents.memory.part = data.part;
                     this.agents.memory.supplier = data.supplier;
                     this.agents.memory.confidence = data.confidence;
                     
-                    const matchMsg = `${data.part} from ${data.supplier} (${data.confidence})`;
-                    this.addMessage('Memory Agent', matchMsg, timestamp);
+                    this.addMessage('Memory Agent', data.message, timestamp);
                     break;
                     
                 case 'memory_error':

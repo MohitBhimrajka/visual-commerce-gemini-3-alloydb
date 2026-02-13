@@ -942,7 +942,7 @@ echo "║  1. Run 'sh run.sh' to start all services      ║"
 echo "║  2. Open http://localhost:8080                 ║"
 echo "║  3. Upload an image and watch the magic! ✨    ║"
 echo "║                                                ║"
-echo "║  Sample images available in test-images/       ║"
+echo "║  Sample images available in assets/samples/    ║"
 echo "╚════════════════════════════════════════════════╝"
 echo ""
 if [ -f "$SCRIPT_DIR/.env" ]; then

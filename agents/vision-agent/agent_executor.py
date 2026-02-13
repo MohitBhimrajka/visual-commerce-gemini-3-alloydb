@@ -50,10 +50,40 @@ class VisionAgentExecutor(AgentExecutor):
             return
 
         result = analyze_image(image_bytes, query)
+        
+        # Build structured response for better downstream processing
         answer = result.get("answer", "No analysis returned.")
-        if result.get("code_output"):
-            answer = f"Code output: {result['code_output']}\n\n{answer}"
-        await event_queue.enqueue_event(new_agent_text_message(answer))
+        code_output = result.get("code_output", "")
+        
+        # Create a comprehensive response
+        if code_output:
+            full_response = f"Code output: {code_output}\n\n{answer}"
+        else:
+            full_response = answer
+        
+        # Extract key terms for supplier search (simple keyword extraction)
+        # Look for numbers and common inventory terms
+        search_terms = []
+        import re
+        numbers = re.findall(r'\d+', code_output) if code_output else []
+        if numbers:
+            search_terms.append(f"{numbers[0]} items")
+        # Add common inventory keywords from answer
+        inventory_keywords = ['box', 'boxes', 'container', 'package', 'unit', 'part', 'item', 'component']
+        for keyword in inventory_keywords:
+            if keyword in answer.lower():
+                search_terms.append(keyword)
+                break
+        
+        # Include search hint in response for better supplier matching
+        if search_terms:
+            search_hint = f"\n\nSearch terms: {', '.join(search_terms)}"
+            full_response += search_hint
+            
+        import sys
+        print(f"[INFO] Vision analysis complete. Search terms: {search_terms if search_terms else 'none'}", file=sys.stderr)
+        
+        await event_queue.enqueue_event(new_agent_text_message(full_response))
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         raise NotImplementedError("cancel not supported")
