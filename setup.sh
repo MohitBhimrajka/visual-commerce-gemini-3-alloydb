@@ -350,7 +350,7 @@ if [ -n "$EXISTING_INSTANCES" ]; then
     echo "✅ Found $INSTANCE_COUNT existing AlloyDB instance(s)"
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "📦 AlloyDB Already Provisioned"
+    echo "📦 Existing AlloyDB Instance(s) Detected"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     echo "Detected existing AlloyDB instance(s):"
@@ -359,9 +359,25 @@ if [ -n "$EXISTING_INSTANCES" ]; then
         echo "  • ${ALLOYDB_CLUSTER}/${ALLOYDB_INSTANCE} in ${ALLOYDB_REGION}"
     done <<< "$EXISTING_INSTANCES"
     echo ""
-    echo "Skipping infrastructure provisioning (already exists)."
+    echo "What would you like to do?"
+    echo "  1) Use existing instance (recommended - saves 15 minutes)"
+    echo "  2) Create a new instance (for separate projects/testing)"
     echo ""
-    SKIP_INFRA_SETUP=true
+    read -p "Enter your choice (1 or 2): " -n 1 -r INSTANCE_CHOICE
+    echo ""
+    echo ""
+    
+    if [[ $INSTANCE_CHOICE == "1" ]]; then
+        echo "✅ Will use existing instance"
+        SKIP_INFRA_SETUP=true
+    elif [[ $INSTANCE_CHOICE == "2" ]]; then
+        echo "📦 Will provision a new instance (~15 minutes)"
+        SKIP_INFRA_SETUP=false
+    else
+        echo "⚠️  Invalid choice. Defaulting to use existing instance (safer option)."
+        SKIP_INFRA_SETUP=true
+    fi
+    echo ""
 else
     echo "ℹ️  No existing AlloyDB instance found"
     echo ""
