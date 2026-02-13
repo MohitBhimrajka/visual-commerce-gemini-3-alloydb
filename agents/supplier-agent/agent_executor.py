@@ -28,7 +28,10 @@ class SupplierAgentExecutor(AgentExecutor):
         embedding = None
 
         for p in parts:
+            # Try both p.text and p.root.text (API structure varies)
             text = getattr(p, "text", None)
+            if not text and hasattr(p, "root"):
+                text = getattr(p.root, "text", None)
             print(f"[DEBUG] Part text: {text[:100] if text else None}...", file=sys.stderr)
             if text:
                 try:
