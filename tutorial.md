@@ -49,6 +49,7 @@ sh setup.sh
 
 - Validates your environment (gcloud, Python, project settings)
 - Prompts you for your Gemini API key (paste the key from previous step)
+- Checks for existing AlloyDB instances (if found, asks if you want to use them)
 - Asks permission to clone the AlloyDB setup tool (press Y to confirm)
 - Clones the lightweight infrastructure provisioning tool (~2 MB)
 - Launches the infrastructure provisioning UI on port 8080
@@ -56,7 +57,8 @@ sh setup.sh
 
 **Interactive prompts:**
 1. When prompted for your API key → Paste it and press Enter
-2. When asked to clone the setup tool → Press Y to confirm
+2. **If existing AlloyDB found** → Choose 1 to reuse (saves 15 min) or 2 to create new
+3. When asked to clone the setup tool → Press Y to confirm
 
 **If you need to restart:**
 - If the script gets stuck or fails, you can safely restart by running `sh setup.sh` again
