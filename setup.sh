@@ -320,9 +320,37 @@ echo ""
 if [ -d "$SCRIPT_DIR/easy-alloydb-setup" ]; then
     echo "✅ Infrastructure tool already cloned"
 else
-    echo "📥 Cloning AlloyDB setup tool from Abi's repo..."
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "📦 AlloyDB Infrastructure Setup Tool"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "We need to provision AlloyDB (VPC, Cluster, Instance)."
+    echo ""
+    echo "What we'll do:"
+    echo "  • Clone a lightweight setup tool (easy-alloydb-setup)"
+    echo "  • Source: https://github.com/AbiramiSukumaran/easy-alloydb-setup"
+    echo "  • Purpose: Provides a web UI to configure and deploy AlloyDB"
+    echo "  • Size: ~2 MB"
+    echo ""
+    echo "Why this tool?"
+    echo "  • Manual AlloyDB setup takes 30+ steps and 45 minutes"
+    echo "  • This tool automates VPC creation, peering, and cluster provisioning"
+    echo "  • Provides a visual interface to track deployment progress"
+    echo "  • Auto-configures network settings and security"
+    echo ""
+    echo "What gets cloned to: ./easy-alloydb-setup/"
+    echo ""
+    read -p "Clone the AlloyDB setup tool? (Y/n): " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+        echo "❌ Cannot proceed without the infrastructure tool"
+        echo "   You can manually provision AlloyDB and update .env"
+        exit 1
+    fi
+    echo ""
+    echo "📥 Cloning AlloyDB setup tool..."
     git clone https://github.com/AbiramiSukumaran/easy-alloydb-setup.git "$SCRIPT_DIR/easy-alloydb-setup" --quiet
-    echo "✅ Cloned successfully"
+    echo "✅ Cloned successfully to ./easy-alloydb-setup/"
 fi
 
 echo ""

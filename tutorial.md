@@ -27,11 +27,14 @@ In the Cloud Shell terminal at the bottom of your screen, run:
 
 - Validates your environment (gcloud, Python, project settings)
 - Prompts you for your Gemini API key (paste the key from previous step)
-- Clones the AlloyDB setup tool
+- Asks permission to clone the AlloyDB setup tool (press Y to confirm)
+- Clones the lightweight infrastructure provisioning tool (~2 MB)
 - Launches the infrastructure provisioning UI on port 8080
 - This takes **~15-20 minutes total** (perfect time for a coffee break ☕)
 
-When prompted for your API key, paste it and press Enter.
+**Interactive prompts:**
+1. When prompted for your API key → Paste it and press Enter
+2. When asked to clone the setup tool → Press Y to confirm
 
 ## Access the Setup UI
 
