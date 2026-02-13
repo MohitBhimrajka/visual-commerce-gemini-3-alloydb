@@ -15,6 +15,26 @@ The Vision Agent needs a Gemini API key to access Gemini 3 Flash with Code Execu
 3. Copy the API key to your clipboard
 4. Keep the tab open - you'll paste this key in the next step
 
+## Set Your Project
+
+Before running setup, verify your GCP project is set correctly in Cloud Shell.
+
+**Check current project:**
+
+```bash
+gcloud config get-value project
+```
+
+**If no project is set, or it's the wrong project:**
+
+```bash
+gcloud config set project YOUR_PROJECT_ID
+```
+
+Replace `YOUR_PROJECT_ID` with your actual project ID from the [Google Cloud Console](https://console.cloud.google.com/).
+
+> **💡 Tip:** You can find your project ID at the top of the Cloud Console, next to the Google Cloud logo.
+
 ## Run Setup Script
 
 In the Cloud Shell terminal at the bottom of your screen, run:
