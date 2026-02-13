@@ -38,6 +38,11 @@ In the Cloud Shell terminal at the bottom of your screen, run:
 1. When prompted for your API key → Paste it and press Enter
 2. When asked to clone the setup tool → Press Y to confirm
 
+**If you need to restart:**
+- If the script gets stuck or fails, you can safely restart by running `./setup.sh` again
+- The script will detect existing AlloyDB instances and skip provisioning
+- You won't need to redeploy infrastructure - it picks up where you left off
+
 ## Access the Setup UI
 
 Once you see the message **"Starting infrastructure setup UI..."**:

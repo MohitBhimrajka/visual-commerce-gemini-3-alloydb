@@ -336,75 +336,105 @@ echo "✅ Python dependencies installed"
 echo ""
 
 # ============================================================================
-# Step 3: Clone Infrastructure Tool
+# Step 3: Check for Existing AlloyDB Instance
 # ============================================================================
 echo "🏗️  Step 3/5: Setting up AlloyDB infrastructure..."
 echo ""
 
-if [ -d "$SCRIPT_DIR/easy-alloydb-setup" ]; then
-    echo "✅ Infrastructure tool already cloned"
+# First check if AlloyDB instance already exists
+echo "🔍 Checking for existing AlloyDB instance..."
+EXISTING_INSTANCES=$(gcloud alloydb instances list --format="value(name)" 2>/dev/null)
+
+if [ -n "$EXISTING_INSTANCES" ]; then
+    INSTANCE_COUNT=$(echo "$EXISTING_INSTANCES" | wc -l | tr -d ' ')
+    echo "✅ Found $INSTANCE_COUNT existing AlloyDB instance(s)"
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "📦 AlloyDB Already Provisioned"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Detected existing AlloyDB instance(s):"
+    while IFS= read -r instance; do
+        parse_instance_uri "$instance"
+        echo "  • ${ALLOYDB_CLUSTER}/${ALLOYDB_INSTANCE} in ${ALLOYDB_REGION}"
+    done <<< "$EXISTING_INSTANCES"
+    echo ""
+    echo "Skipping infrastructure provisioning (already exists)."
+    echo ""
+    SKIP_INFRA_SETUP=true
 else
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "📦 AlloyDB Infrastructure Setup Tool"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "ℹ️  No existing AlloyDB instance found"
     echo ""
-    echo "We need to provision AlloyDB (VPC, Cluster, Instance)."
-    echo ""
-    echo "What we'll do:"
-    echo "  • Clone a lightweight setup tool (easy-alloydb-setup)"
-    echo "  • Source: https://github.com/AbiramiSukumaran/easy-alloydb-setup"
-    echo "  • Purpose: Provides a web UI to configure and deploy AlloyDB"
-    echo "  • Size: ~2 MB"
-    echo ""
-    echo "Why this tool?"
-    echo "  • Manual AlloyDB setup takes 30+ steps and 45 minutes"
-    echo "  • This tool automates VPC creation, peering, and cluster provisioning"
-    echo "  • Provides a visual interface to track deployment progress"
-    echo "  • Auto-configures network settings and security"
-    echo ""
-    echo "What gets cloned to: ./easy-alloydb-setup/"
-    echo ""
-    read -p "Clone the AlloyDB setup tool? (Y/n): " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        echo "❌ Cannot proceed without the infrastructure tool"
-        echo "   You can manually provision AlloyDB and update .env"
-        exit 1
-    fi
-    echo ""
-    echo "📥 Cloning AlloyDB setup tool..."
-    git clone https://github.com/AbiramiSukumaran/easy-alloydb-setup.git "$SCRIPT_DIR/easy-alloydb-setup" --quiet
-    echo "✅ Cloned successfully to ./easy-alloydb-setup/"
+    SKIP_INFRA_SETUP=false
 fi
 
-echo ""
-echo "🌐 Starting infrastructure setup UI..."
-echo ""
-echo "┌──────────────────────────────────────────────────────┐"
-echo "│  IMPORTANT: Setup Instructions                      │"
-echo "├──────────────────────────────────────────────────────┤"
-echo "│  1. Access via Web Preview on port 8080             │"
-echo "│  2. Enter your Project ID: $PROJECT"
-echo "│  3. Select Region (e.g., us-central1)               │"
-echo "│  4. Set Database Password & SAVE IT!                │"
-echo "│  5. Click 'Start Deployment' (~15 minutes)          │"
-echo "│  6. When complete, click 'Reveal Private IP & Copy' │"
-echo "│  7. Press Ctrl+C here when you see the details      │"
-echo "│                                                      │"
-echo "│  ✅ This script will AUTO-DETECT:                   │"
-echo "│     - Cluster name, Instance, Region, Project       │"
-echo "│  ⚠️  You only need to REMEMBER the password!        │"
-echo "└──────────────────────────────────────────────────────┘"
-echo ""
-read -p "Press Enter to launch the setup UI..."
+# Clone setup tool if needed (only if we need to provision)
+if [ "$SKIP_INFRA_SETUP" = false ]; then
+    if [ -d "$SCRIPT_DIR/easy-alloydb-setup" ]; then
+        echo "✅ Infrastructure tool already cloned"
+    else
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📦 AlloyDB Infrastructure Setup Tool"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "We need to provision AlloyDB (VPC, Cluster, Instance)."
+        echo ""
+        echo "What we'll do:"
+        echo "  • Clone a lightweight setup tool (easy-alloydb-setup)"
+        echo "  • Source: https://github.com/AbiramiSukumaran/easy-alloydb-setup"
+        echo "  • Purpose: Provides a web UI to configure and deploy AlloyDB"
+        echo "  • Size: ~2 MB"
+        echo ""
+        echo "Why this tool?"
+        echo "  • Manual AlloyDB setup takes 30+ steps and 45 minutes"
+        echo "  • This tool automates VPC creation, peering, and cluster provisioning"
+        echo "  • Provides a visual interface to track deployment progress"
+        echo "  • Auto-configures network settings and security"
+        echo ""
+        echo "What gets cloned to: ./easy-alloydb-setup/"
+        echo ""
+        read -p "Clone the AlloyDB setup tool? (Y/n): " -n 1 -r
+        echo ""
+        if [[ $REPLY =~ ^[Nn]$ ]]; then
+            echo "❌ Cannot proceed without the infrastructure tool"
+            echo "   You can manually provision AlloyDB and update .env"
+            exit 1
+        fi
+        echo ""
+        echo "📥 Cloning AlloyDB setup tool..."
+        git clone https://github.com/AbiramiSukumaran/easy-alloydb-setup.git "$SCRIPT_DIR/easy-alloydb-setup" --quiet
+        echo "✅ Cloned successfully to ./easy-alloydb-setup/"
+    fi
 
-cd "$SCRIPT_DIR/easy-alloydb-setup"
-sh run.sh
-cd "$SCRIPT_DIR"
+    echo ""
+    echo "🌐 Starting infrastructure setup UI..."
+    echo ""
+    echo "┌──────────────────────────────────────────────────────┐"
+    echo "│  IMPORTANT: Setup Instructions                      │"
+    echo "├──────────────────────────────────────────────────────┤"
+    echo "│  1. Access via Web Preview on port 8080             │"
+    echo "│  2. Enter your Project ID: $PROJECT"
+    echo "│  3. Select Region (e.g., us-central1)               │"
+    echo "│  4. Set Database Password & SAVE IT!                │"
+    echo "│  5. Click 'Start Deployment' (~15 minutes)          │"
+    echo "│  6. When complete, click 'Reveal Private IP & Copy' │"
+    echo "│  7. Press Ctrl+C here when you see the details      │"
+    echo "│                                                      │"
+    echo "│  ✅ This script will AUTO-DETECT:                   │"
+    echo "│     - Cluster name, Instance, Region, Project       │"
+    echo "│  ⚠️  You only need to REMEMBER the password!        │"
+    echo "└──────────────────────────────────────────────────────┘"
+    echo ""
+    read -p "Press Enter to launch the setup UI..."
 
-echo ""
-echo "✅ Infrastructure provisioning complete!"
-echo ""
+    cd "$SCRIPT_DIR/easy-alloydb-setup"
+    sh run.sh
+    cd "$SCRIPT_DIR"
+
+    echo ""
+    echo "✅ Infrastructure provisioning complete!"
+    echo ""
+fi
 
 # ============================================================================
 # Step 4: Database Connection Setup
@@ -650,6 +680,8 @@ if [ ! -f "$PROXY_BINARY" ]; then
     echo "✅ Downloaded successfully"
 else
     echo "✅ Auth Proxy binary already exists"
+    # Ensure it's executable (in case permissions were lost)
+    chmod +x "$PROXY_BINARY" 2>/dev/null || true
 fi
 
 echo "✅ Using instance: ${INSTANCE_URI}"
