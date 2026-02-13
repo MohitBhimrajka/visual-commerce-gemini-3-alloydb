@@ -26,19 +26,27 @@ def analyze_image(image_bytes: bytes, query: str = "Write code to count the exac
     With Code Execution enabled, the model writes Python (OpenCV) to count items.
     """
     image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+    text_part = types.Part.from_text(text=query)
+    
+    contents = [
+        types.Content(
+            role="user",
+            parts=[image_part, text_part],
+        ),
+    ]
 
     response = client.models.generate_content(
         model="gemini-3-flash-preview",
-        contents=[image_part, query],
+        contents=contents,
         config=types.GenerateContentConfig(
             temperature=0,
             # CODELAB STEP 1: Uncomment to enable deep reasoning
             thinking_config=types.ThinkingConfig(
-                thinking_level="high",  # Valid: "minimal", "low", "medium", "high". Use "medium" in production
+                thinking_level="HIGH",  # Valid: "MINIMAL", "LOW", "MEDIUM", "HIGH". Use "MEDIUM" in production
                 include_thoughts=True  # Include thought summaries for debugging
             ),
             # CODELAB STEP 2: Uncomment to enable code execution
-            tools=[types.Tool(code_execution=types.ToolCodeExecution())]
+            tools=[types.Tool(code_execution=types.ToolCodeExecution)]
         ),
     )
 

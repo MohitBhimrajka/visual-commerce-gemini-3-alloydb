@@ -161,14 +161,14 @@ You'll see two commented blocks. **Uncomment both:**
 1. The `thinking_config` block:
 ```python
 thinking_config=types.ThinkingConfig(
-    thinking_level="high",  # Valid: "minimal", "low", "medium", "high". Use "medium" in production
+    thinking_level="HIGH",  # Valid: "MINIMAL", "LOW", "MEDIUM", "HIGH". Use "MEDIUM" in production
     include_thoughts=True  # Include thought summaries for debugging
 ),
 ```
 
 2. The `tools` block:
 ```python
-tools=[types.Tool(code_execution=types.ToolCodeExecution())]
+tools=[types.Tool(code_execution=types.ToolCodeExecution)]
 ```
 
 **Save the file** (Ctrl+S or Cmd+S)
