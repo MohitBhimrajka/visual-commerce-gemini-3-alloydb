@@ -5,6 +5,7 @@ Real-time updates via WebSockets.
 """
 import asyncio
 import base64
+import io
 import json
 import os
 import random
@@ -18,6 +19,7 @@ from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
+from PIL import Image
 
 from a2a.client import A2ACardResolver, A2AClient
 from a2a.types import MessageSendParams, SendMessageRequest
@@ -66,6 +68,47 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+
+
+def compress_image(image_bytes: bytes, max_size_kb: int = 500) -> bytes:
+    """
+    Compress image to stay under max_size_kb while maintaining reasonable quality.
+    Resizes if needed to keep payload under A2A protocol limits.
+    """
+    img = Image.open(io.BytesIO(image_bytes))
+    
+    # Convert to RGB if necessary (removes alpha channel)
+    if img.mode in ('RGBA', 'LA', 'P'):
+        img = img.convert('RGB')
+    
+    # Start with max dimension of 1024px (good for vision analysis)
+    max_dimension = 1024
+    quality = 85
+    
+    while max_dimension >= 256:  # Don't go below 256px
+        # Resize maintaining aspect ratio
+        img_copy = img.copy()
+        img_copy.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+        
+        # Compress to JPEG
+        output = io.BytesIO()
+        img_copy.save(output, format='JPEG', quality=quality, optimize=True)
+        compressed_bytes = output.getvalue()
+        
+        # Check size
+        size_kb = len(compressed_bytes) / 1024
+        if size_kb <= max_size_kb:
+            return compressed_bytes
+        
+        # Try reducing quality or dimension
+        if quality > 60:
+            quality -= 10
+        else:
+            max_dimension = int(max_dimension * 0.8)
+            quality = 85
+    
+    # If still too large, return best effort
+    return compressed_bytes
 
 
 def extract_text_from_response(response) -> str:
@@ -193,8 +236,11 @@ async def run_workflow_with_events(image_bytes: bytes):
                 "timestamp": asyncio.get_event_loop().time()
             })
             
+            # Compress image to stay under A2A protocol payload limits (~500KB)
+            compressed_image = compress_image(image_bytes, max_size_kb=500)
+            
             payload = json.dumps({
-                "image_base64": base64.b64encode(image_bytes).decode("utf-8"),
+                "image_base64": base64.b64encode(compressed_image).decode("utf-8"),
                 "query": "Write code to count the exact number of boxes on this shelf.",
             })
             
