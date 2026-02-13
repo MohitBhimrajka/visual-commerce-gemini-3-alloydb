@@ -1,7 +1,7 @@
 #!/bin/bash
 # Autonomous Supply Chain - Master Setup Script
 # Run this ONCE to provision AlloyDB infrastructure and seed database
-# Usage: ./setup.sh
+# Usage: sh setup.sh
 
 set -e
 
@@ -583,11 +583,11 @@ if curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeM
             else
                 echo ""
                 echo "⚠️  Credentials setup completed, but file location unclear"
-                echo "   Auth Proxy may have issues - re-run ./setup.sh if needed"
+                echo "   Auth Proxy may have issues - re-run 'sh setup.sh' if needed"
             fi
         else
             echo "⚠️  Skipping credential setup - Auth Proxy will likely fail"
-            echo "   Re-run ./setup.sh later to fix authentication"
+            echo "   Re-run 'sh setup.sh' later to fix authentication"
         fi
     else
         echo "✅ Application Default Credentials found"
@@ -830,7 +830,7 @@ for i in {1..30}; do
             echo ""
             echo "FIX: Re-download the correct binary:"
             echo "  1. Remove corrupted binary: rm alloydb-auth-proxy"
-            echo "  2. Re-run setup: ./setup.sh"
+            echo "  2. Re-run setup: sh setup.sh"
             echo ""
             echo "Or manually download:"
             echo "  wget $PROXY_URL -O alloydb-auth-proxy && chmod +x alloydb-auth-proxy"
@@ -922,7 +922,7 @@ echo "╔═══════════════════════�
 echo "║  🎉 Setup Complete!                            ║"
 echo "╠════════════════════════════════════════════════╣"
 echo "║  Next steps:                                   ║"
-echo "║  1. Run './run.sh' to start all services       ║"
+echo "║  1. Run 'sh run.sh' to start all services      ║"
 echo "║  2. Open http://localhost:8080                 ║"
 echo "║  3. Upload an image and watch the magic! ✨    ║"
 echo "║                                                ║"

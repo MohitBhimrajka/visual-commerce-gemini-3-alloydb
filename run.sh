@@ -1,7 +1,7 @@
 #!/bin/bash
 # Autonomous Supply Chain - Master Run Script
 # Starts all services: Auth Proxy, Vision Agent, Supplier Agent, Control Tower
-# Usage: ./run.sh
+# Usage: sh run.sh
 
 set -e
 
@@ -108,7 +108,7 @@ PROXY_BINARY="$SCRIPT_DIR/alloydb-auth-proxy"
 
 if [ ! -f "$PROXY_BINARY" ]; then
     echo "❌ Auth Proxy binary not found"
-    echo "   Run './setup.sh' first to download it"
+    echo "   Run 'sh setup.sh' first to download it"
     exit 1
 fi
 
@@ -123,7 +123,7 @@ else
     
     if [ -z "$INSTANCES" ]; then
         echo "❌ No AlloyDB instance found"
-        echo "   Run './setup.sh' first to provision infrastructure"
+        echo "   Run 'sh setup.sh' first to provision infrastructure"
         exit 1
     fi
     
@@ -136,7 +136,7 @@ else
         # Multiple instances but no .env preference - use first one
         INSTANCE_URI=$(echo "$INSTANCES" | head -n 1)
         echo "⚠️  Multiple instances found, using first one"
-        echo "   Run './setup.sh' to select and save preference to .env"
+        echo "   Run 'sh setup.sh' to select and save preference to .env"
     fi
 fi
 
@@ -206,7 +206,7 @@ if ! pgrep -f "alloydb-auth-proxy" > /dev/null; then
         if grep -q "oauth2.*invalid token" "$SCRIPT_DIR/logs/proxy.log" 2>/dev/null; then
             echo "⚠️  Auth Proxy started but has authentication issues"
             echo "   Run: gcloud auth application-default login"
-            echo "   Then restart: ./run.sh"
+            echo "   Then restart: sh run.sh"
         else
             echo "✅ Auth Proxy started"
         fi

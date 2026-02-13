@@ -66,7 +66,7 @@ The index fits in CPU L2 cache for maximum speed.
 
 ```bash
 cd ../..
-./run.sh
+sh run.sh
 ```
 
 ### Manually

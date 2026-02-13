@@ -22,7 +22,7 @@ python3 agent.py ../../test-images/warehouse_shelf_1.png
 
 ### Via Control Tower
 ```bash
-./run.sh
+sh run.sh
 # Open http://localhost:8080
 # Click "Try Sample Image" to load test images
 ```
