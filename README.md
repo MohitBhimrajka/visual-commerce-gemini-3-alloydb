@@ -11,26 +11,16 @@ A multi-agent system featuring:
 
 ## Architecture
 
-```mermaid
-graph TB
-    User[User Browser]
-    Frontend[Control Tower :8080]
-    Vision[Vision Agent :8081]
-    Supplier[Supplier Agent :8082]
-    Gemini[Gemini 3 Flash]
-    AlloyDB[(AlloyDB ScaNN)]
-    
-    User -->|Upload Image| Frontend
-    Frontend <-->|WebSocket| User
-    Frontend -->|A2A Protocol| Vision
-    Frontend -->|A2A Protocol| Supplier
-    Vision -->|Code Execution| Gemini
-    Supplier -->|Vector Search| AlloyDB
-    
-    style Frontend fill:#3B82F6
-    style Vision fill:#F59E0B
-    style Supplier fill:#10B981
-```
+![Autonomous Supply Chain Architecture](./assets/architecture-diagram.png)
+
+**Key Components:**
+- **Control Tower (port 8080):** WebSocket-based UI for real-time orchestration and agent coordination
+- **Vision Agent (port 8081):** Gemini 3 Flash with Code Execution for deterministic vision (API key)
+- **Supplier Agent (port 8082):** AlloyDB ScaNN vector search for semantic part matching (GCP credentials)
+- **AlloyDB AI:** Enterprise PostgreSQL with ScaNN index for fast nearest-neighbor search
+- **A2A Protocol:** Dynamic agent discovery via `/.well-known/agent-card.json`
+
+**Hybrid Architecture:** Vision Agent uses Gemini API (simple setup, free tier available), while Supplier Agent uses GCP services (enterprise-grade, compliance-ready).
 
 ## Quick Start
 
