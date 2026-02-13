@@ -1,5 +1,5 @@
 a2a-sdk[http-server]
-google-genai
+google-genai>=1.56.0
 uvicorn
 Pillow
 python-dotenv
