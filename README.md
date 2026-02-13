@@ -40,10 +40,10 @@ git clone https://github.com/MohitBhimrajka/visual-commerce-gemini-3-alloydb.git
 cd visual-commerce-gemini-3-alloydb
 
 # 2. Run setup (provisions infrastructure + seeds database)
-./setup.sh
+sh setup.sh
 
 # 3. Start all services
-./run.sh
+sh run.sh
 ```
 
 > **📌 Note:** All commands assume you're in the repo root (`visual-commerce-gemini-3-alloydb/`). If commands fail with "No such file", verify your location with `pwd` and navigate back to the repo.
@@ -82,7 +82,7 @@ visual-commerce-gemini-3-alloydb/
 
 ## What Each Command Does
 
-### `./setup.sh`
+### `setup.sh`
 
 1. **Validates environment** - Checks gcloud, APIs, project settings
 2. **Clones infrastructure tool** - Gets AlloyDB setup tool
@@ -90,7 +90,7 @@ visual-commerce-gemini-3-alloydb/
 4. **Enables Public IP** - If on Cloud Shell, offers to enable Public IP (secure: mTLS + IAM + password complexity)
 5. **Seeds database** - Populates inventory with sample data and creates ScaNN index
 
-### `./run.sh`
+### `run.sh`
 
 1. **Starts AlloyDB Auth Proxy** - Creates secure tunnel to database (uses `--public-ip` if available)
 2. **Launches Vision Agent** - Port 8081 (Gemini 3 Flash)
@@ -127,7 +127,7 @@ tail -50 logs/proxy.log
 **Common causes:**
 
 1. **Wrong password** - Check `.env`: `cat .env | grep DB_PASS`
-2. **Proxy not running** - Restart with `./run.sh`
+2. **Proxy not running** - Restart with `sh run.sh`
 3. **Port 5432 in use** - Kill existing process: `lsof -ti:5432 | xargs kill -9`
 
 > **Why do I need the Auth Proxy?** AlloyDB's private IP (172.21.0.x) is only reachable from inside the VPC. Cloud Shell runs outside the VPC. The Auth Proxy creates a secure mTLS tunnel from `127.0.0.1:5432` to your AlloyDB instance. If Public IP is enabled, the proxy connects via the public endpoint.
