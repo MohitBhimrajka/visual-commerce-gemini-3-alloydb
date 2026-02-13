@@ -23,6 +23,8 @@ In the Cloud Shell terminal at the bottom of your screen, run:
 ./setup.sh
 ```
 
+> **Note:** If the script reports "Not authenticated with gcloud", run `gcloud auth login` first, then re-run `./setup.sh`
+
 **What happens:**
 
 - Validates your environment (gcloud, Python, project settings)

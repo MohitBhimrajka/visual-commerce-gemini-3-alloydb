@@ -150,7 +150,25 @@ else
     PREFLIGHT_ERRORS=$((PREFLIGHT_ERRORS + 1))
 fi
 
-# Check 2: Python 3
+# Check 2: gcloud Authentication
+echo -n "Checking gcloud authentication... "
+ACTIVE_ACCOUNT=$(gcloud auth list --filter=status:ACTIVE --format="value(account)" 2>/dev/null)
+if [ -n "$ACTIVE_ACCOUNT" ]; then
+    echo "✅ ($ACTIVE_ACCOUNT)"
+else
+    echo "❌"
+    echo "   Error: Not authenticated with gcloud"
+    echo ""
+    echo "   You must authenticate before continuing."
+    echo "   Run: gcloud auth login"
+    echo ""
+    echo "   This will open a browser to sign in with your Google account."
+    echo "   After signing in, re-run this setup script."
+    echo ""
+    PREFLIGHT_ERRORS=$((PREFLIGHT_ERRORS + 1))
+fi
+
+# Check 3: Python 3
 echo -n "Checking Python 3... "
 if command -v python3 &> /dev/null; then
     PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
@@ -161,7 +179,7 @@ else
     PREFLIGHT_ERRORS=$((PREFLIGHT_ERRORS + 1))
 fi
 
-# Check 3: pip3
+# Check 4: pip3
 echo -n "Checking pip3... "
 if command -v pip3 &> /dev/null; then
     echo "✅"
@@ -171,7 +189,7 @@ else
     PREFLIGHT_WARNINGS=$((PREFLIGHT_WARNINGS + 1))
 fi
 
-# Check 4: Git
+# Check 5: Git
 echo -n "Checking git... "
 if command -v git &> /dev/null; then
     echo "✅"
@@ -181,7 +199,7 @@ else
     PREFLIGHT_ERRORS=$((PREFLIGHT_ERRORS + 1))
 fi
 
-# Check 5: GCP Project
+# Check 6: GCP Project
 echo -n "Checking GCP project... "
 PROJECT=$(gcloud config get-value project 2>/dev/null)
 if [ -n "$PROJECT" ]; then
@@ -194,8 +212,8 @@ else
     PREFLIGHT_ERRORS=$((PREFLIGHT_ERRORS + 1))
 fi
 
-# Check 6: Billing (if project exists)
-if [ -n "$PROJECT" ]; then
+# Check 7: Billing (if project exists and authenticated)
+if [ -n "$PROJECT" ] && [ -n "$ACTIVE_ACCOUNT" ]; then
     echo -n "Checking billing... "
     BILLING_ENABLED=$(gcloud beta billing projects describe "$PROJECT" --format="value(billingEnabled)" 2>/dev/null || echo "false")
     if [ "$BILLING_ENABLED" = "True" ] || [ "$BILLING_ENABLED" = "true" ]; then
@@ -208,21 +226,27 @@ if [ -n "$PROJECT" ]; then
     fi
 fi
 
-# Check 7: Required APIs
-echo ""
-echo "Checking required APIs..."
-REQUIRED_APIS=("aiplatform.googleapis.com" "alloydb.googleapis.com" "compute.googleapis.com" "servicenetworking.googleapis.com")
-MISSING_APIS=()
+# Check 8: Required APIs (only if authenticated)
+if [ -n "$ACTIVE_ACCOUNT" ]; then
+    echo ""
+    echo "Checking required APIs..."
+    REQUIRED_APIS=("aiplatform.googleapis.com" "alloydb.googleapis.com" "compute.googleapis.com" "servicenetworking.googleapis.com")
+    MISSING_APIS=()
 
-for api in "${REQUIRED_APIS[@]}"; do
-    echo -n "  - $api... "
-    if gcloud services list --enabled --filter="name:$api" --format="value(name)" 2>/dev/null | grep -q "$api"; then
-        echo "✅"
-    else
-        echo "❌"
-        MISSING_APIS+=("$api")
-    fi
-done
+    for api in "${REQUIRED_APIS[@]}"; do
+        echo -n "  - $api... "
+        if gcloud services list --enabled --filter="name:$api" --format="value(name)" 2>/dev/null | grep -q "$api"; then
+            echo "✅"
+        else
+            echo "❌"
+            MISSING_APIS+=("$api")
+        fi
+    done
+else
+    echo ""
+    echo "⚠️  Skipping API checks (authentication required)"
+    MISSING_APIS=()
+fi
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
