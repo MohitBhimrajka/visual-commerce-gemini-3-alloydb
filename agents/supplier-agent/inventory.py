@@ -46,9 +46,10 @@ def find_supplier(embedding_vector: list[float]) -> tuple | None:
             """
             print(f"[DEBUG] Executing SQL query with embedding", file=sys.stderr)
             cursor.execute(sql, (embedding_vector, embedding_vector))
-            result = cursor.fetchone()
+            result = cursor.fetchone()  # Fetch INSIDE with block
             print(f"[DEBUG] Query result: {result}", file=sys.stderr)
-            return result
+        # Cursor is now closed, but we have the result
+        return result  # Return OUTSIDE with block
     except Exception as e:
         print(f"[ERROR] Database query failed: {e}", file=sys.stderr)
         raise

@@ -14,24 +14,34 @@ class SupplierAgentExecutor(AgentExecutor):
     """A2A executor that searches inventory via AlloyDB ScaNN vector search."""
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        import sys
+        print(f"\n[DEBUG] SupplierAgentExecutor.execute called", file=sys.stderr)
+        
         # Handle API change: try different attribute names for message
         message = getattr(context, 'message', None) or getattr(context, 'request_message', None)
+        print(f"[DEBUG] Message object: {message}", file=sys.stderr)
+        
         parts = message.parts if message and hasattr(message, 'parts') else []
+        print(f"[DEBUG] Message parts: {len(parts)} parts", file=sys.stderr)
         
         query = None
         embedding = None
 
         for p in parts:
             text = getattr(p, "text", None)
+            print(f"[DEBUG] Part text: {text[:100] if text else None}...", file=sys.stderr)
             if text:
                 try:
                     data = json.loads(text)
                     query = data.get("query")
                     embedding = data.get("embedding")
+                    print(f"[DEBUG] Parsed JSON - query: {query[:50] if query else None}, embedding: {len(embedding) if embedding else 0} dims", file=sys.stderr)
                 except json.JSONDecodeError:
                     query = text
+                    print(f"[DEBUG] Using raw text as query: {query[:50]}", file=sys.stderr)
 
         if not query and not embedding:
+            print(f"[ERROR] No query or embedding provided!", file=sys.stderr)
             await event_queue.enqueue_event(
                 new_agent_text_message(
                     "Error: Provide 'query' (text) or 'embedding' (vector) in JSON."
@@ -42,16 +52,25 @@ class SupplierAgentExecutor(AgentExecutor):
         try:
             if embedding:
                 emb = embedding
+                print(f"[DEBUG] Using provided embedding: {len(emb)} dims", file=sys.stderr)
             else:
+                print(f"[DEBUG] Generating embedding for query: {query}", file=sys.stderr)
                 emb = get_embedding(query)
 
+            print(f"[DEBUG] Calling find_supplier with embedding...", file=sys.stderr)
             result = find_supplier(emb)
+            print(f"[DEBUG] find_supplier returned: {result}", file=sys.stderr)
+            
             if not result:
+                print(f"[ERROR] No result from find_supplier", file=sys.stderr)
                 await event_queue.enqueue_event(
                     new_agent_text_message("No matching supplier found in inventory.")
                 )
                 return
         except Exception as e:
+            import traceback
+            print(f"[ERROR] Exception in supplier agent: {e}", file=sys.stderr)
+            print(traceback.format_exc(), file=sys.stderr)
             await event_queue.enqueue_event(
                 new_agent_text_message(f"Database error: {str(e)}")
             )
