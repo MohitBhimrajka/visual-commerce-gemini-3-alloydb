@@ -7,8 +7,10 @@ import asyncio
 import base64
 import io
 import json
+import logging
 import os
 import random
+import sys
 from pathlib import Path
 from typing import Set
 from uuid import uuid4
@@ -23,6 +25,17 @@ from PIL import Image
 
 from a2a.client import A2ACardResolver, A2AClient
 from a2a.types import MessageSendParams, SendMessageRequest
+
+# Configure comprehensive logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.StreamHandler(sys.stderr)
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file (searches up directory tree)
 load_dotenv(find_dotenv(usecwd=True))
@@ -200,6 +213,10 @@ async def run_workflow_with_events(image_bytes: bytes):
     Run the full autonomous loop via A2A: Vision -> Memory -> Action.
     Emits WebSocket events at each step for real-time UI updates.
     """
+    logger.info("=" * 80)
+    logger.info("WORKFLOW STARTED")
+    logger.info(f"Image size: {len(image_bytes)} bytes")
+    logger.info("=" * 80)
     
     # Extended timeout for Vision Agent (Gemini 3 Flash with code execution can take 60-90s)
     async with httpx.AsyncClient(timeout=270.0) as client:
@@ -213,6 +230,9 @@ async def run_workflow_with_events(image_bytes: bytes):
         await asyncio.sleep(0.5)  # Brief pause for visual feedback
         
         # Phase 1: Discovery - Vision Agent
+        logger.info("PHASE 1: Discovery - Vision Agent")
+        logger.info(f"Vision Agent URL: {VISION_URL}")
+        
         await manager.broadcast({
             "type": "discovery_start",
             "agent": "vision",
@@ -221,9 +241,16 @@ async def run_workflow_with_events(image_bytes: bytes):
         })
         
         try:
+            logger.info(f"Creating A2ACardResolver for {VISION_URL}")
             resolver = A2ACardResolver(httpx_client=client, base_url=VISION_URL)
+            
+            logger.info("Fetching agent card...")
             vision_card = await resolver.get_agent_card()
+            logger.info(f"Agent card received: {vision_card.name}")
+            
+            logger.info("Creating A2A client...")
             vision_client = A2AClient(httpx_client=client, agent_card=vision_card)
+            logger.info("Vision Agent client created successfully")
             
             await manager.broadcast({
                 "type": "discovery_complete",
@@ -235,6 +262,7 @@ async def run_workflow_with_events(image_bytes: bytes):
             await asyncio.sleep(0.5)
             
             # Phase 2: Vision Analysis
+            logger.info("PHASE 2: Vision Analysis")
             await manager.broadcast({
                 "type": "vision_start",
                 "message": "Vision Agent analyzing image with Gemini 3 Flash...",
@@ -244,15 +272,18 @@ async def run_workflow_with_events(image_bytes: bytes):
             
             # Compress image to stay under A2A protocol payload limits
             # Vision models work best with images under 1MB
+            logger.info(f"Compressing image: original size {len(image_bytes)/1024:.1f} KB")
             compressed_image = compress_image(image_bytes, max_size_kb=800)
-            print(f"[INFO] Image compressed: {len(image_bytes)/1024:.1f} KB → {len(compressed_image)/1024:.1f} KB", file=sys.stderr)
+            logger.info(f"Image compressed: {len(image_bytes)/1024:.1f} KB → {len(compressed_image)/1024:.1f} KB")
             
             query_text = "Analyze this warehouse shelf image. Write code to: 1) Count the exact number of items/boxes, 2) Describe the type of items (boxes, containers, parts, etc.), 3) Note any visible labels or identifying features. Format: 'Found X [item type]. [Description]'"
+            logger.info(f"Query: {query_text[:100]}...")
             
             payload = json.dumps({
                 "image_base64": base64.b64encode(compressed_image).decode("utf-8"),
                 "query": query_text,
             })
+            logger.info(f"Payload size: {len(payload)} bytes")
             
             request = SendMessageRequest(
                 id=str(uuid4()),
@@ -265,8 +296,14 @@ async def run_workflow_with_events(image_bytes: bytes):
                 ),
             )
             
+            logger.info("Sending message to Vision Agent...")
             response = await vision_client.send_message(request)
+            logger.info("Response received from Vision Agent")
+            logger.info(f"Response type: {type(response)}")
+            
             vision_text = extract_text_from_response(response)
+            logger.info(f"Extracted vision text length: {len(vision_text)} chars")
+            logger.info(f"Vision text preview: {vision_text[:200]}...")
             
             # Check if we have code execution results
             code_output = None
@@ -291,6 +328,13 @@ async def run_workflow_with_events(image_bytes: bytes):
                 })
             
         except Exception as e:
+            logger.error("=" * 80)
+            logger.error("VISION AGENT ERROR")
+            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Error message: {str(e)}")
+            logger.error("Full traceback:", exc_info=True)
+            logger.error("=" * 80)
+            
             await manager.broadcast({
                 "type": "vision_error",
                 "message": f"Vision Agent error: {str(e)}",
@@ -302,6 +346,9 @@ async def run_workflow_with_events(image_bytes: bytes):
         await asyncio.sleep(0.5)
         
         # Phase 3: Discovery - Supplier Agent
+        logger.info("PHASE 3: Discovery - Supplier Agent")
+        logger.info(f"Supplier Agent URL: {SUPPLIER_URL}")
+        
         await manager.broadcast({
             "type": "discovery_start",
             "agent": "supplier",
@@ -310,9 +357,16 @@ async def run_workflow_with_events(image_bytes: bytes):
         })
         
         try:
+            logger.info(f"Creating A2ACardResolver for {SUPPLIER_URL}")
             supplier_resolver = A2ACardResolver(httpx_client=client, base_url=SUPPLIER_URL)
+            
+            logger.info("Fetching supplier agent card...")
             supplier_card = await supplier_resolver.get_agent_card()
+            logger.info(f"Supplier agent card received: {supplier_card.name}")
+            
+            logger.info("Creating Supplier A2A client...")
             supplier_client = A2AClient(httpx_client=client, agent_card=supplier_card)
+            logger.info("Supplier Agent client created successfully")
             
             await manager.broadcast({
                 "type": "discovery_complete",
@@ -324,6 +378,7 @@ async def run_workflow_with_events(image_bytes: bytes):
             await asyncio.sleep(0.5)
             
             # Phase 4: Memory Search
+            logger.info("PHASE 4: Memory Search")
             await manager.broadcast({
                 "type": "memory_start",
                 "message": "Querying AlloyDB with ScaNN vector search...",
@@ -332,7 +387,6 @@ async def run_workflow_with_events(image_bytes: bytes):
             })
             
             # Extract search query from vision agent's analysis
-            import sys
             import re
             
             # Try to extract "Search terms:" if present
@@ -341,7 +395,7 @@ async def run_workflow_with_events(image_bytes: bytes):
                 match = re.search(r'Search terms:\s*([^\n]+)', vision_text)
                 if match:
                     search_query = match.group(1).strip()
-                    print(f"[INFO] Using extracted search terms: {search_query[:100]}", file=sys.stderr)
+                    logger.info(f"Using extracted search terms: {search_query[:100]}")
             
             # Fallback: use first 150 chars of vision response (skip "Code output:" prefix)
             if not search_query and vision_text:
@@ -351,13 +405,17 @@ async def run_workflow_with_events(image_bytes: bytes):
                     if len(parts) > 1:
                         text_to_search = parts[1]
                 search_query = text_to_search[:150].strip()
+                logger.info(f"Using fallback from vision text: {search_query[:100]}")
             
             # Last resort fallback
             if not search_query:
                 search_query = "industrial warehouse inventory parts boxes containers"
-                print(f"[WARNING] Using fallback search query", file=sys.stderr)
+                logger.warning("Using last resort fallback search query")
             
+            logger.info(f"Final search query: {search_query}")
             supplier_payload = json.dumps({"query": search_query})
+            logger.info(f"Supplier payload size: {len(supplier_payload)} bytes")
+            
             supplier_request = SendMessageRequest(
                 id=str(uuid4()),
                 params=MessageSendParams(
@@ -484,15 +542,24 @@ async def analyze_image(file: UploadFile = File(...)):
     Returns immediately while workflow runs in background with WebSocket updates.
     """
     try:
+        logger.info("=" * 80)
+        logger.info("ANALYZE ENDPOINT CALLED")
+        logger.info(f"File: {file.filename}, Content-Type: {file.content_type}")
+        logger.info("=" * 80)
+        
         image_bytes = await file.read()
+        logger.info(f"Image bytes read: {len(image_bytes)} bytes")
         
         # Validate image
         if not image_bytes:
+            logger.error("Empty file uploaded")
             raise HTTPException(status_code=400, detail="Empty file uploaded")
         
+        logger.info("Starting workflow in background task")
         # Run workflow in background
         asyncio.create_task(run_workflow_with_events(image_bytes))
         
+        logger.info("Workflow task created, returning response")
         return {
             "status": "processing",
             "message": "Workflow started. Listen to WebSocket for real-time updates."
