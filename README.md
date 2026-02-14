@@ -149,8 +149,8 @@ tail -50 logs/proxy.log
 
 **Cloud Shell (Recommended)**:
 - Automatic networking configuration
-- No authorized networks needed
-- Works out of the box
+- **Custom VPC Note**: If your AlloyDB is in a custom VPC (not "default"), Cloud Shell will automatically use Public IP connection since it cannot reach custom VPCs via private IP
+- The setup script auto-detects this and configures the Auth Proxy accordingly
 
 **Local Machine**:
 - Requires AlloyDB Public IP enabled

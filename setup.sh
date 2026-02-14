@@ -830,6 +830,9 @@ if [ -n "$PUBLIC_IP" ]; then
         read -p "   Configure authorized networks? (1=All IPs/2=My IP/N=Skip): " -n 1 -r
         echo ""
         
+        # Local machines always need --public-ip flag
+        USE_PUBLIC_IP_FLAG="--public-ip"
+        
         if [[ $REPLY =~ ^[1]$ ]]; then
             echo "   Authorizing all external IPs (0.0.0.0/0)..."
             if gcloud alloydb instances update "$ALLOYDB_INSTANCE" \
@@ -868,7 +871,23 @@ if [ -n "$PUBLIC_IP" ]; then
             echo "   ⚠️  Connection may fail if you're not on the VPC"
         fi
     else
-        echo "   Cloud Shell/GCE detected - authorized networks not required"
+        echo "   Cloud Shell/GCE detected - checking VPC connectivity..."
+        
+        # Even in Cloud Shell, if AlloyDB is in a custom VPC (not default),
+        # we need to use Public IP because Cloud Shell can't reach it privately
+        ALLOYDB_NETWORK=$(gcloud alloydb instances describe "$ALLOYDB_INSTANCE" \
+            --cluster="$ALLOYDB_CLUSTER" \
+            --region="$ALLOYDB_REGION" \
+            --format="value(network)" 2>/dev/null)
+        
+        if [[ "$ALLOYDB_NETWORK" == *"default"* ]]; then
+            echo "   ✅ AlloyDB in default VPC - private connectivity available"
+            USE_PUBLIC_IP_FLAG=""
+        else
+            echo "   ⚠️  AlloyDB in custom VPC - will use Public IP connection"
+            echo "   Note: Cloud Shell cannot reach custom VPCs via private IP"
+            USE_PUBLIC_IP_FLAG="--public-ip"
+        fi
     fi
 fi
 
@@ -886,9 +905,20 @@ echo "🚀 Starting Auth Proxy with fresh credentials..."
 # Ensure logs directory exists
 mkdir -p "$SCRIPT_DIR/logs"
 
-# Start proxy without --public-ip flag (auto-detects connection method)
-echo "   Starting proxy with automatic connection detection..."
-nohup "$PROXY_BINARY" "$INSTANCE_URI" > "$SCRIPT_DIR/logs/proxy.log" 2>&1 &
+# Determine connection method based on Public IP availability
+if [ -n "$PUBLIC_IP" ] && [ -z "$USE_PUBLIC_IP_FLAG" ]; then
+    # Public IP exists but we're in Cloud Shell with default VPC - let proxy auto-detect
+    echo "   Starting proxy with automatic connection detection..."
+    nohup "$PROXY_BINARY" "$INSTANCE_URI" > "$SCRIPT_DIR/logs/proxy.log" 2>&1 &
+elif [ -n "$PUBLIC_IP" ]; then
+    # Public IP exists and we need to use it explicitly
+    echo "   Using Public IP: $PUBLIC_IP"
+    nohup "$PROXY_BINARY" "$INSTANCE_URI" --public-ip > "$SCRIPT_DIR/logs/proxy.log" 2>&1 &
+else
+    # No Public IP - must use private IP
+    echo "   Using private IP connection..."
+    nohup "$PROXY_BINARY" "$INSTANCE_URI" > "$SCRIPT_DIR/logs/proxy.log" 2>&1 &
+fi
 
 PROXY_PID=$!
 echo "   PID: $PROXY_PID (logs: logs/proxy.log)"
