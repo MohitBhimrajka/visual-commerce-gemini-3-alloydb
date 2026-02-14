@@ -4,296 +4,293 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Autonomous Supply Chain Control Tower</title>
+    <meta name="theme-color" content="#08090A">
     
     <link rel="stylesheet" href="/static/styles.css">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body x-data="appState()">
     
-    <!-- Sticky Results Header (appears after vision complete) -->
+    <!-- ═══════════════════════════════════════════
+         STICKY RESULTS BAR (builds up as data arrives)
+         ═══════════════════════════════════════════ -->
     <div class="results-header" :class="{'visible': visionResult !== null}">
         <div class="results-header-content">
             <div class="result-item">
                 <span class="result-label">Count</span>
-                <span class="result-value highlight" x-text="visionResult?.item_count || '-'"></span>
+                <span class="result-value highlight" x-text="visionResult?.item_count || '—'"></span>
             </div>
             <div class="result-item">
-                <span class="result-label">Item Type</span>
-                <span class="result-value" x-text="visionResult?.item_type || '-'"></span>
+                <span class="result-label">Type</span>
+                <span class="result-value" x-text="visionResult?.item_type || '—'"></span>
             </div>
             <div class="result-item">
                 <span class="result-label">Confidence</span>
-                <span class="result-value" x-text="visionResult?.confidence || '-'"></span>
+                <span class="result-value" x-text="visionResult?.confidence || '—'"></span>
             </div>
             <div class="result-item" x-show="supplierResult">
                 <span class="result-label">Supplier</span>
-                <span class="result-value" x-text="supplierResult?.supplier_name || '-'"></span>
+                <span class="result-value" x-text="supplierResult?.supplier || '—'"></span>
             </div>
             <div class="result-item" x-show="orderResult">
-                <span class="result-label">Order ID</span>
-                <span class="result-value" style="color: var(--action-green);" x-text="orderResult?.order_id || '-'"></span>
+                <span class="result-label">Order</span>
+                <span class="result-value" style="color: var(--green);" x-text="orderResult?.orderId || '—'"></span>
             </div>
         </div>
-        <button @click="resetUpload()" class="btn btn-sm" style="background: var(--bg-subtle); padding: 0.5rem 1rem;">
+        <button @click="resetUpload()" class="btn btn-sm" style="background: var(--surface-3); color: var(--text-80);">
             New Analysis
         </button>
     </div>
     
-    <!-- Header -->
-    <header style="text-align: center; margin-bottom: 2rem;" :style="visionResult ? 'padding-top: 4rem;' : ''">
-        <h1 class="hero-title" style="font-size: 2.5rem; margin-bottom: 0.5rem;">Autonomous Supply Chain Control Tower</h1>
-        <p class="hero-subtitle" style="font-size: 1rem; color: var(--text-secondary);">Powered by Gemini 3 Flash, AlloyDB AI, and A2A Protocol</p>
+    <!-- ═══════════════════════════════════════════
+         HEADER
+         ═══════════════════════════════════════════ -->
+    <header :style="visionResult ? 'padding-top: 3.5rem;' : ''">
+        <h1 class="hero-title">Autonomous Supply Chain Control Tower</h1>
+        <p class="hero-subtitle">Gemini 3 Flash · AlloyDB AI · A2A Protocol</p>
         
-        <!-- Fixed Controls (Top Right) -->
-        <div style="position: fixed; top: 1.5rem; right: 1.5rem; display: flex; gap: 1rem; z-index: 1000;">
-            <!-- Mute Toggle -->
+        <!-- Fixed controls -->
+        <div style="position: fixed; top: 1rem; right: 1.5rem; display: flex; gap: 0.75rem; z-index: 1000;">
             <button @click="toggleAudio()" class="mute-toggle no-print" :title="audioEnabled ? 'Mute' : 'Unmute'">
                 <span x-show="audioEnabled">🔊</span>
                 <span x-show="!audioEnabled">🔇</span>
             </button>
-            <!-- Connection Status -->
             <div class="connection-status no-print">
                 <div class="connection-dot" :class="wsConnected ? 'connected' : 'disconnected'"></div>
-                <span x-text="wsConnected ? 'Connected' : 'Disconnected'"></span>
+                <span x-text="wsConnected ? 'Live' : 'Offline'"></span>
             </div>
         </div>
     </header>
     
-    <!-- App Container -->
+    <!-- ═══════════════════════════════════════════
+         MAIN CONTENT AREA
+         ═══════════════════════════════════════════ -->
     <div class="app-container">
         
-        <!-- Main Floating Glass Card -->
+        <!-- ──────────────────────────────────
+             MAIN CARD (center column)
+             ────────────────────────────────── -->
         <div class="main-glass-card">
         
-        <!-- Act 1: Upload -->
-        <section class="act act-upload" :class="{ 'active': step === 0 }" x-show="step === 0">
-            
-            <!-- Hero Section -->
-            <div class="upload-hero">
-                <h2 class="upload-title">Start Your Analysis</h2>
-                <p class="upload-instructions">Upload a warehouse shelf image to automatically count inventory, match suppliers, and place orders—all powered by AI</p>
-            </div>
-            
-            <!-- Upload Area -->
-            <div class="upload-area"
-                 :class="{'drag-over': isDragging}"
-                 @dragover.prevent="isDragging = true"
-                 @dragleave.prevent="isDragging = false"
-                 @drop.prevent="handleDrop($event)">
+            <!-- ACT 1: UPLOAD ─────────────────── -->
+            <section class="act act-upload" :class="{ 'active': step === 0 }" x-show="step === 0">
                 
-                <template x-if="!uploadedImage">
-                    <div>
-                        <svg style="margin: 0 auto; width: 4rem; height: 4rem; color: var(--text-tertiary);" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
-                        <div style="margin-top: 1.5rem;">
-                            <label for="file-upload" style="cursor: pointer;">
-                                <span style="font-size: 1rem; color: var(--text-secondary);">
-                                    <span style="font-weight: 600; color: var(--vision-blue);">Upload a file</span>
-                                    or drag and drop
-                                </span>
-                                <p style="font-size: 0.875rem; color: var(--text-tertiary); margin-top: 0.5rem;">PNG, JPG, JPEG up to 10MB</p>
-                            </label>
-                            <input id="file-upload" type="file" style="display: none;" accept="image/*" @change="handleFileSelect($event)">
-                        </div>
-                    </div>
-                </template>
-                
-                <template x-if="uploadedImage">
-                    <div style="position: relative;">
-                        <img :src="uploadedImage" alt="Uploaded warehouse image" style="max-height: 24rem; margin: 0 auto; border-radius: var(--radius); box-shadow: var(--shadow-lg);">
-                        <button @click="resetUpload()" style="position: absolute; top: 0.5rem; right: 0.5rem; background: var(--error); color: white; border-radius: 50%; padding: 0.5rem; border: none; cursor: pointer; transition: all var(--transition);">
-                            <svg style="width: 1.25rem; height: 1.25rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                        </button>
-                    </div>
-                </template>
-            </div>
-            
-            <!-- Start Button -->
-            <div class="text-center" style="margin-top: var(--space-8);">
-                <button @click="startAnalysis()" 
-                        :disabled="!uploadedImage || isProcessing"
-                        class="btn btn-primary btn-lg">
-                    <template x-if="!isProcessing">
-                        <span>Initiate Autonomous Workflow</span>
-                    </template>
-                    <template x-if="isProcessing">
-                        <span style="display: flex; align-items: center; gap: 0.5rem;">
-                            <span class="spinner"></span>
-                            Processing...
-                        </span>
-                    </template>
-                </button>
-            </div>
-            
-            <!-- Sample Images Grid -->
-            <div x-show="sampleImages.length > 0 && !uploadedImage" class="samples-section">
-                <div class="samples-header">
-                    <span class="samples-label">Or try a sample image</span>
-                    <div class="samples-line"></div>
+                <div class="upload-hero">
+                    <h2 class="upload-title">Analyze Your Warehouse</h2>
+                    <p class="upload-instructions">Upload a shelf image to count inventory, match suppliers, and place orders — all autonomously powered by AI agents.</p>
                 </div>
-                <div class="samples-grid">
-                    <template x-for="img in sampleImages" :key="img.name">
-                        <div class="sample-card" @click="selectSampleImage(img.name)">
-                            <img :src="`/api/test-image/${img.name}`" :alt="img.name">
-                            <div class="sample-overlay">
-                                <span class="sample-action">Analyze This Image</span>
+                
+                <!-- Drop zone -->
+                <div class="upload-area"
+                     :class="{'drag-over': isDragging}"
+                     @dragover.prevent="isDragging = true"
+                     @dragleave.prevent="isDragging = false"
+                     @drop.prevent="handleDrop($event)">
+                    
+                    <template x-if="!uploadedImage">
+                        <div>
+                            <svg style="margin: 0 auto; width: 3rem; height: 3rem; color: var(--text-20);" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <div style="margin-top: 1rem;">
+                                <label for="file-upload" style="cursor: pointer;">
+                                    <span style="font-size: 0.9rem; color: var(--text-60);">
+                                        <span style="font-weight: 600; color: var(--blue);">Upload a file</span>
+                                        or drag and drop
+                                    </span>
+                                    <p style="font-size: 0.75rem; color: var(--text-20); margin-top: 0.5rem; font-family: var(--font-mono);">PNG, JPG, JPEG up to 10MB</p>
+                                </label>
+                                <input id="file-upload" type="file" style="display: none;" accept="image/*" @change="handleFileSelect($event)">
                             </div>
                         </div>
                     </template>
-                </div>
-            </div>
-            
-        </section>
-        
-        <!-- Act 2: Vision (Scan & Reveal) -->
-        <section class="act act-vision" :class="{ 'active': step === 1 }" x-show="step === 1">
-            <div class="image-stage">
-                <img :src="uploadedImage" alt="Analyzing..." style="max-width: 100%; max-height: 500px; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);">
-                
-                <!-- Scan Overlay -->
-                <div class="scan-overlay" x-show="!visionResult">
-                    <div class="scan-line"></div>
-                </div>
-                
-                <!-- Thought Overlay (Fake Thoughts) -->
-                <div class="thought-overlay" x-show="currentThought && !visionResult">
-                    <span class="thought-text" x-text="currentThought"></span>
-                    <span class="thought-cursor"></span>
-                </div>
-                
-                <!-- Count Badge (Real Result) -->
-                <div x-show="visionResult" class="result-container">
-                    <div class="count-badge">
-                        <div class="badge-indicator" :class="{'confirmed': visionResult?.hasCodeExecution, 'estimated': !visionResult?.hasCodeExecution}">
-                            <span x-show="visionResult?.hasCodeExecution">✓</span>
-                            <span x-show="!visionResult?.hasCodeExecution">~</span>
-                        </div>
-                        <div class="badge-content">
-                            <div class="badge-count" x-text="visionResult ? `${visionResult.item_count} ${visionResult.item_type}` : ''"></div>
-                            <div class="badge-label" x-text="visionResult?.hasCodeExecution ? 'Confirmed' : 'Estimated'"></div>
-                        </div>
-                    </div>
-                    <div class="count-summary" x-text="visionResult ? visionResult.summary : ''"></div>
-                </div>
-            </div>
-        </section>
-        
-        <!-- Act 3: Memory (Map & Supplier Match) -->
-        <section class="act act-memory" :class="{ 'active': step === 2 }" x-show="step === 2">
-            <div class="split-view">
-                <!-- Image Thumbnail (Left) -->
-                <div class="image-thumbnail">
-                    <img :src="uploadedImage" alt="Analyzed image">
-                    <div style="margin-top: 1rem; text-align: center;">
-                        <div style="font-size: 1.25rem; font-weight: 600; color: var(--text-primary);" x-text="visionResult ? `${visionResult.item_count} ${visionResult.item_type}` : ''"></div>
-                        <div class="search-label" x-show="visionResult">
-                            Searching: <strong x-text="visionResult ? visionResult.search_query : ''"></strong>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Map Container (Right) -->
-                <div class="map-container">
-                    <!-- World Map SVG (Simplified Continents) -->
-                    <svg class="map-svg" viewBox="0 0 1000 500" xmlns="http://www.w3.org/2000/svg">
-                        <!-- North America -->
-                        <path d="M100,80 L180,70 L250,90 L280,140 L260,180 L220,200 L180,190 L140,160 L120,120 Z"/>
-                        <!-- South America -->
-                        <path d="M240,250 L260,240 L280,260 L290,300 L280,360 L260,400 L240,420 L220,400 L210,360 L220,300 Z"/>
-                        <!-- Europe -->
-                        <path d="M480,100 L520,90 L560,110 L580,140 L560,170 L520,180 L480,170 L460,140 Z"/>
-                        <!-- Africa -->
-                        <path d="M480,200 L520,190 L560,210 L580,260 L570,320 L540,360 L500,360 L470,320 L460,260 Z"/>
-                        <!-- Asia -->
-                        <path d="M600,80 L700,70 L780,90 L820,130 L800,180 L760,200 L700,190 L640,160 L610,120 Z"/>
-                        <!-- Australia -->
-                        <path d="M750,320 L800,310 L840,330 L850,360 L830,390 L790,400 L750,390 L730,360 Z"/>
-                    </svg>
                     
-                    <!-- Radar Ping Animation -->
-                    <div class="radar-ping" x-show="!supplierResult">
-                        <div class="radar-circle"></div>
-                        <div class="radar-circle"></div>
-                        <div class="radar-circle"></div>
-                    </div>
-                    
-                    <!-- Supplier Pin (Drops on Match) -->
-                    <div class="supplier-pin" x-show="supplierResult">
-                        <div class="pin-icon">📍</div>
-                    </div>
-                    
-                    <!-- Supplier Card -->
-                    <div class="supplier-card" x-show="supplierResult">
-                        <div class="supplier-card-header">Match Found</div>
-                        <div class="supplier-detail">
-                            <span class="supplier-label">Part:</span>
-                            <span class="supplier-value" x-text="supplierResult ? supplierResult.part : ''"></span>
+                    <template x-if="uploadedImage">
+                        <div style="position: relative;">
+                            <img :src="uploadedImage" alt="Uploaded warehouse image">
+                            <button @click="resetUpload()" style="position: absolute; top: 0.5rem; right: 0.5rem; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 32px; height: 32px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 200ms ease;">
+                                <svg style="width: 1rem; height: 1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
                         </div>
-                        <div class="supplier-detail">
-                            <span class="supplier-label">Supplier:</span>
-                            <span class="supplier-value" x-text="supplierResult ? supplierResult.supplier : ''"></span>
-                        </div>
-                        <div class="supplier-detail">
-                            <span class="supplier-label">Confidence:</span>
-                            <span class="supplier-value confidence-high" x-text="supplierResult ? supplierResult.confidence : ''"></span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-        
-        <!-- Act 4: Order (Receipt) -->
-        <section class="act act-order" :class="{ 'active': step === 3 }" x-show="step === 3">
-            <div class="receipt-card">
-                <div class="receipt-header">
-                    <div class="receipt-checkmark">✓</div>
-                    <div class="receipt-title">Order Placed Successfully</div>
-                    <div class="receipt-subtitle">Autonomous procurement complete</div>
+                    </template>
                 </div>
                 
-                <div class="receipt-details">
-                    <div class="receipt-row">
-                        <span class="receipt-label">Order ID:</span>
-                        <span class="receipt-value order-id" x-text="orderResult ? orderResult.orderId : ''"></span>
-                    </div>
-                    <div class="receipt-row">
-                        <span class="receipt-label">Part:</span>
-                        <span class="receipt-value" x-text="supplierResult ? supplierResult.part : ''"></span>
-                    </div>
-                    <div class="receipt-row">
-                        <span class="receipt-label">Supplier:</span>
-                        <span class="receipt-value" x-text="supplierResult ? supplierResult.supplier : ''"></span>
-                    </div>
-                    <div class="receipt-row">
-                        <span class="receipt-label">Quantity:</span>
-                        <span class="receipt-value" x-text="visionResult ? visionResult.item_count : ''"></span>
-                    </div>
-                    <div class="receipt-row">
-                        <span class="receipt-label">Confidence:</span>
-                        <span class="receipt-value confidence-high" x-text="visionResult ? visionResult.confidence : ''"></span>
-                    </div>
-                </div>
-                
-                <div class="text-center">
-                    <button @click="resetUpload()" class="btn btn-primary btn-lg">
-                        Run Another Analysis
+                <!-- Start button -->
+                <div class="text-center" style="margin-top: var(--space-6);">
+                    <button @click="startAnalysis()" 
+                            :disabled="!uploadedImage || isProcessing"
+                            class="btn btn-primary btn-lg">
+                        <template x-if="!isProcessing">
+                            <span>Initiate Autonomous Workflow</span>
+                        </template>
+                        <template x-if="isProcessing">
+                            <span style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span class="spinner"></span>
+                                Processing…
+                            </span>
+                        </template>
                     </button>
                 </div>
-            </div>
-        </section>
-        
+                
+                <!-- Sample images -->
+                <div x-show="sampleImages.length > 0 && !uploadedImage" class="samples-section">
+                    <div class="samples-header">
+                        <span class="samples-label">Or try a sample</span>
+                        <div class="samples-line"></div>
+                    </div>
+                    <div class="samples-grid">
+                        <template x-for="img in sampleImages" :key="img.name">
+                            <div class="sample-card" @click="selectSampleImage(img.name)">
+                                <img :src="`/api/test-image/${img.name}`" :alt="img.name">
+                                <div class="sample-overlay">
+                                    <span class="sample-action">Analyze →</span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                
+            </section>
+            
+            <!-- ACT 2: VISION ─────────────────── -->
+            <section class="act act-vision" :class="{ 'active': step === 1 }" x-show="step === 1">
+                <div class="image-stage">
+                    <img :src="uploadedImage" alt="Analyzing…">
+                    
+                    <!-- Scan line -->
+                    <div class="scan-overlay" x-show="!visionResult">
+                        <div class="scan-line"></div>
+                    </div>
+                    
+                    <!-- Thought stream -->
+                    <div class="thought-overlay" x-show="currentThought && !visionResult">
+                        <span class="thought-text" x-text="currentThought"></span>
+                        <span class="thought-cursor"></span>
+                    </div>
+                    
+                    <!-- Result badge -->
+                    <div x-show="visionResult" class="result-container">
+                        <div class="count-badge">
+                            <div class="badge-indicator" :class="{'confirmed': visionResult?.hasCodeExecution, 'estimated': !visionResult?.hasCodeExecution}">
+                                <span x-show="visionResult?.hasCodeExecution">✓</span>
+                                <span x-show="!visionResult?.hasCodeExecution">~</span>
+                            </div>
+                            <div class="badge-content">
+                                <div class="badge-count" x-text="visionResult ? `${visionResult.item_count} ${visionResult.item_type}` : ''"></div>
+                                <div class="badge-label" x-text="visionResult?.hasCodeExecution ? 'Code-Verified' : 'Estimated'"></div>
+                            </div>
+                        </div>
+                        <div class="count-summary" x-text="visionResult ? visionResult.summary : ''"></div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- ACT 3: SUPPLIER MATCH ─────────── -->
+            <section class="act act-memory" :class="{ 'active': step === 2 }" x-show="step === 2">
+                <div class="split-view">
+                    <!-- Thumbnail -->
+                    <div class="image-thumbnail">
+                        <img :src="uploadedImage" alt="Analyzed image">
+                        <div style="margin-top: 0.75rem; text-align: center;">
+                            <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-100);" x-text="visionResult ? `${visionResult.item_count} ${visionResult.item_type}` : ''"></div>
+                            <div class="search-label" x-show="visionResult">
+                                Querying: <strong x-text="visionResult ? visionResult.search_query : ''"></strong>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Map -->
+                    <div class="map-container">
+                        <svg class="map-svg" viewBox="0 0 1000 500" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M100,80 L180,70 L250,90 L280,140 L260,180 L220,200 L180,190 L140,160 L120,120 Z"/>
+                            <path d="M240,250 L260,240 L280,260 L290,300 L280,360 L260,400 L240,420 L220,400 L210,360 L220,300 Z"/>
+                            <path d="M480,100 L520,90 L560,110 L580,140 L560,170 L520,180 L480,170 L460,140 Z"/>
+                            <path d="M480,200 L520,190 L560,210 L580,260 L570,320 L540,360 L500,360 L470,320 L460,260 Z"/>
+                            <path d="M600,80 L700,70 L780,90 L820,130 L800,180 L760,200 L700,190 L640,160 L610,120 Z"/>
+                            <path d="M750,320 L800,310 L840,330 L850,360 L830,390 L790,400 L750,390 L730,360 Z"/>
+                        </svg>
+                        
+                        <div class="radar-ping" x-show="!supplierResult">
+                            <div class="radar-circle"></div>
+                            <div class="radar-circle"></div>
+                            <div class="radar-circle"></div>
+                        </div>
+                        
+                        <div class="supplier-pin" x-show="supplierResult">
+                            <div class="pin-icon">📍</div>
+                        </div>
+                        
+                        <div class="supplier-card" x-show="supplierResult">
+                            <div class="supplier-card-header">Match Found</div>
+                            <div class="supplier-detail">
+                                <span class="supplier-label">Part</span>
+                                <span class="supplier-value" x-text="supplierResult ? supplierResult.part : ''"></span>
+                            </div>
+                            <div class="supplier-detail">
+                                <span class="supplier-label">Supplier</span>
+                                <span class="supplier-value" x-text="supplierResult ? supplierResult.supplier : ''"></span>
+                            </div>
+                            <div class="supplier-detail">
+                                <span class="supplier-label">Confidence</span>
+                                <span class="supplier-value confidence-high" x-text="supplierResult ? supplierResult.confidence : ''"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- ACT 4: ORDER ──────────────────── -->
+            <section class="act act-order" :class="{ 'active': step === 3 }" x-show="step === 3">
+                <div class="receipt-card">
+                    <div class="receipt-header">
+                        <div class="receipt-checkmark">✓</div>
+                        <div class="receipt-title">Order Placed</div>
+                        <div class="receipt-subtitle">Autonomous procurement complete</div>
+                    </div>
+                    
+                    <div class="receipt-details">
+                        <div class="receipt-row">
+                            <span class="receipt-label">Order ID</span>
+                            <span class="receipt-value order-id" x-text="orderResult ? orderResult.orderId : ''"></span>
+                        </div>
+                        <div class="receipt-row">
+                            <span class="receipt-label">Part</span>
+                            <span class="receipt-value" x-text="supplierResult ? supplierResult.part : ''"></span>
+                        </div>
+                        <div class="receipt-row">
+                            <span class="receipt-label">Supplier</span>
+                            <span class="receipt-value" x-text="supplierResult ? supplierResult.supplier : ''"></span>
+                        </div>
+                        <div class="receipt-row">
+                            <span class="receipt-label">Quantity</span>
+                            <span class="receipt-value" x-text="visionResult ? visionResult.item_count : ''"></span>
+                        </div>
+                        <div class="receipt-row">
+                            <span class="receipt-label">Confidence</span>
+                            <span class="receipt-value confidence-high" x-text="visionResult ? visionResult.confidence : ''"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center">
+                        <button @click="resetUpload()" class="btn btn-primary btn-lg">
+                            Run Another Analysis
+                        </button>
+                    </div>
+                </div>
+            </section>
+            
         </div> <!-- /main-glass-card -->
         
-        <!-- Floating Status Panels (Right Side) -->
+        <!-- ──────────────────────────────────
+             RIGHT PANELS (sticky sidebar)
+             ────────────────────────────────── -->
         <div class="floating-panels-container">
             
-            <!-- Results Summary Panel (always visible after vision complete) -->
+            <!-- Results summary (persistent) -->
             <div class="results-summary-panel floating-status-card" x-show="visionResult !== null" x-transition>
-                <h3 class="panel-title" style="font-size: 0.875rem; margin-bottom: 1rem;">Analysis Results</h3>
-                
+                <h3 class="panel-title">Analysis Results</h3>
                 <div class="summary-grid">
                     <div class="summary-item">
                         <div class="summary-icon">📦</div>
@@ -302,7 +299,6 @@
                             <div class="summary-value" x-text="visionResult?.item_count || '0'"></div>
                         </div>
                     </div>
-                    
                     <div class="summary-item">
                         <div class="summary-icon">🏷️</div>
                         <div>
@@ -310,7 +306,6 @@
                             <div class="summary-value" x-text="visionResult?.item_type || 'N/A'"></div>
                         </div>
                     </div>
-                    
                     <div class="summary-item">
                         <div class="summary-icon">✓</div>
                         <div>
@@ -318,44 +313,39 @@
                             <div class="summary-value" x-text="visionResult?.confidence || 'N/A'"></div>
                         </div>
                     </div>
-                    
                     <div class="summary-item" x-show="supplierResult">
                         <div class="summary-icon">🏭</div>
                         <div>
                             <div class="summary-label">Supplier</div>
-                            <div class="summary-value" style="font-size: 0.875rem;" x-text="supplierResult?.supplier_name || 'N/A'"></div>
+                            <div class="summary-value" style="font-size: 0.875rem;" x-text="supplierResult?.supplier || 'N/A'"></div>
                         </div>
                     </div>
-                    
                     <div class="summary-item" x-show="orderResult">
                         <div class="summary-icon">✅</div>
                         <div>
                             <div class="summary-label">Order ID</div>
-                            <div class="summary-value" style="color: var(--action-green);" x-text="orderResult?.order_id || 'N/A'"></div>
+                            <div class="summary-value" style="color: var(--green);" x-text="orderResult?.orderId || 'N/A'"></div>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Execution Output (if available) -->
-                <div class="execution-output-compact" x-show="executionOutput" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+                <!-- Code output -->
+                <div class="execution-output-compact" x-show="executionOutput" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--surface-3);">
                     <div class="summary-label" style="margin-bottom: 0.5rem;">Code Output</div>
-                    <pre style="background: #1e1e1e; color: #d4d4d4; padding: 0.75rem; border-radius: 8px; font-size: 0.75rem; margin: 0;" x-text="executionOutput"></pre>
+                    <pre x-text="executionOutput"></pre>
                 </div>
             </div>
             
-            <!-- Workflow Progress Panel -->
+            <!-- Workflow progress -->
             <div class="workflow-panel floating-status-card" x-show="isProcessing || step > 0">
-                <!-- Progress Section -->
+                
+                <!-- Progress bar section -->
                 <div class="progress-section" x-show="isProcessing">
-                    <h3 class="panel-title" style="font-size: 0.875rem; margin-bottom: 1rem;">Analysis Progress</h3>
-                    
-                    <!-- Progress Bar -->
+                    <h3 class="panel-title">Analysis Progress</h3>
                     <div class="progress-bar-container">
                         <div class="progress-bar-fill" :style="`width: ${progressPercent}%`"></div>
                         <span class="progress-percent" x-text="`${progressPercent}%`"></span>
                     </div>
-                    
-                    <!-- Current Substep -->
                     <div class="current-substep">
                         <div class="substep-icon">
                             <span x-show="progressPercent < 30">🧠</span>
@@ -364,27 +354,21 @@
                         </div>
                         <div class="substep-text" x-text="currentSubstep"></div>
                     </div>
-                    
-                    <!-- Code Generation Indicator -->
                     <div class="code-gen-indicator" x-show="codeGenerating">
                         <div class="code-animation">
                             <div class="code-line"></div>
                             <div class="code-line"></div>
                             <div class="code-line"></div>
                         </div>
-                        <span>Generating Python code...</span>
+                        <span>Generating Python code…</span>
                     </div>
-                    
-                    <!-- Execution Indicator -->
                     <div class="exec-indicator" x-show="codeExecuting">
                         <div class="terminal-animation">
                             <span class="terminal-prompt">$</span>
                             <span class="terminal-cursor"></span>
                         </div>
-                        <span>Running detection algorithm...</span>
+                        <span>Running detection…</span>
                     </div>
-                    
-                    <!-- Live Log Stream -->
                     <div class="live-logs" x-show="liveLogStream.length > 0">
                         <template x-for="log in liveLogStream.slice(-3)" :key="log.time">
                             <div class="log-item">
@@ -395,9 +379,9 @@
                     </div>
                 </div>
                 
-                <!-- Progress Timeline -->
-                <div class="progress-timeline" style="margin-top: 1.5rem;">
-                    <h3 class="panel-title" style="font-size: 0.875rem; margin-bottom: 1rem;">Workflow Steps</h3>
+                <!-- Workflow timeline -->
+                <div class="progress-timeline">
+                    <h3 class="panel-title">Workflow</h3>
                     <div class="timeline-steps">
                         <div class="timeline-step" :class="{'active': step >= 0, 'completed': step > 0}">
                             <div class="step-indicator"></div>
@@ -419,9 +403,9 @@
                 </div>
             </div>
             
-            <!-- Agent Activity Panel -->
+            <!-- Agent activity -->
             <div class="agent-panel floating-status-card tint-vision" x-show="isProcessing">
-                <h3 class="panel-title" style="font-size: 0.875rem; margin-bottom: 1rem;">Agent Activity</h3>
+                <h3 class="panel-title">Agent Activity</h3>
                 <div class="agent-activity">
                     <div class="activity-text" x-text="orchestratorText || 'System ready'"></div>
                     <div class="activity-indicator" x-show="isProcessing">
@@ -432,18 +416,19 @@
                 </div>
             </div>
             
-            <!-- Code/Output Panels (when available) -->
+            <!-- Code viewer -->
             <div class="code-viewer-section floating-status-card" x-show="generatedCode">
                 <button class="panel-toggle" @click="showCode = !showCode">
-                    <span x-text="showCode ? '▼' : '▶'"></span>
+                    <span x-text="showCode ? '▾' : '▸'"></span>
                     Generated Code
                 </button>
                 <pre class="code-block" x-show="showCode" x-text="generatedCode"></pre>
             </div>
             
+            <!-- Output viewer -->
             <div class="output-viewer-section floating-status-card" x-show="executionOutput">
                 <button class="panel-toggle" @click="showOutput = !showOutput">
-                    <span x-text="showOutput ? '▼' : '▶'"></span>
+                    <span x-text="showOutput ? '▾' : '▸'"></span>
                     Execution Output
                 </button>
                 <pre class="output-block" x-show="showOutput" x-text="executionOutput"></pre>
@@ -451,22 +436,22 @@
             
         </div> <!-- /floating-panels-container -->
         
-        <!-- A2A Agent Discovery Modal -->
+        <!-- ──────────────────────────────────
+             A2A AGENT DISCOVERY MODAL
+             ────────────────────────────────── -->
         <div class="agent-discovery-modal" x-show="showAgentDiscovery" x-transition>
             <div class="discovery-backdrop" @click="showAgentDiscovery = false"></div>
             <div class="discovery-container">
                 <div class="discovery-header">
-                    <h3>Discovering Agent via A2A Protocol</h3>
+                    <h3>Agent Discovery · A2A</h3>
                     <button class="close-btn" @click="showAgentDiscovery = false">×</button>
                 </div>
                 
-                <!-- Discovery Animation -->
                 <div class="agent-search-animation">
                     <div class="search-radar"></div>
                     <div class="search-pulse"></div>
                 </div>
                 
-                <!-- Agent Card (appears when found) -->
                 <div class="agent-card" x-show="discoveredAgent" x-transition>
                     <div class="agent-icon">
                         <span x-show="discoveredAgent?.name === 'supplier'">🏭</span>
@@ -492,7 +477,6 @@
                     </div>
                 </div>
                 
-                <!-- Connect Button -->
                 <button class="connect-btn" x-show="discoveredAgent" @click="connectToAgent()">
                     Connect to Agent
                 </button>
@@ -501,7 +485,6 @@
         
     </div> <!-- /app-container -->
     
-    <!-- Application JavaScript -->
     <script src="/static/app.js"></script>
     
 </body>
