@@ -67,7 +67,52 @@
     <!-- ═══════════════════════════════════════════
          MAIN CONTENT AREA
          ═══════════════════════════════════════════ -->
-    <div class="app-container" :class="{'has-sidebar': step > 0}">
+    <div class="app-container" :class="{'has-panels': step > 0}">
+
+        <!-- ──────────────────────────────────
+             LEFT PANELS (Agent Activity + Workflow)
+             ────────────────────────────────── -->
+        <div class="left-panels-container" x-show="step > 0" x-transition>
+
+            <!-- Workflow timeline -->
+            <div class="workflow-panel floating-status-card">
+                <div class="progress-timeline">
+                    <h3 class="panel-title">Workflow</h3>
+                    <div class="timeline-steps">
+                        <div class="timeline-step" :class="{'active': step >= 0, 'completed': step > 0}">
+                            <div class="step-indicator"></div>
+                            <span>Upload Image</span>
+                        </div>
+                        <div class="timeline-step" :class="{'active': step >= 1, 'completed': step > 1}">
+                            <div class="step-indicator"></div>
+                            <span>Vision Analysis</span>
+                        </div>
+                        <div class="timeline-step" :class="{'active': step >= 2, 'completed': step > 2}">
+                            <div class="step-indicator"></div>
+                            <span>Supplier Match</span>
+                        </div>
+                        <div class="timeline-step" :class="{'active': step >= 3, 'completed': step >= 4}">
+                            <div class="step-indicator"></div>
+                            <span>Place Order</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agent activity -->
+            <div class="agent-panel floating-status-card" :class="{'tint-vision': step === 1, 'tint-memory': step === 2, 'tint-action': step >= 3}">
+                <h3 class="panel-title">Agent Activity</h3>
+                <div class="agent-activity">
+                    <div class="activity-text" x-text="orchestratorText || 'System ready'"></div>
+                    <div class="activity-indicator" x-show="isProcessing">
+                        <div class="pulse-dot"></div>
+                        <div class="pulse-dot"></div>
+                        <div class="pulse-dot"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div> <!-- /left-panels-container -->
 
         <!-- ──────────────────────────────────
              MAIN CARD (center column)
@@ -281,6 +326,11 @@
                                 <span class="detail-value confidence-high" x-text="supplierResult ? supplierResult.confidence : ''"></span>
                             </div>
                         </div>
+                        <div class="text-center" style="margin-top: var(--space-5);" x-show="step === 2">
+                            <button @click="proceedToOrder()" class="btn btn-primary btn-lg">
+                                Proceed to Order
+                            </button>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -328,86 +378,61 @@
         </div> <!-- /main-glass-card -->
 
         <!-- ──────────────────────────────────
-             RIGHT PANELS (sticky sidebar — visible when step > 0)
+             RIGHT PANELS (Progress + Code)
              ────────────────────────────────── -->
-        <div class="floating-panels-container" x-show="step > 0" x-transition>
+        <div class="right-panels-container" x-show="step > 0" x-transition>
 
-            <!-- Workflow timeline (always visible during/after processing) -->
-            <div class="workflow-panel floating-status-card">
-
-                <!-- Progress bar section -->
-                <div class="progress-section" x-show="isProcessing && step === 1">
-                    <h3 class="panel-title">Analysis Progress</h3>
-                    <div class="progress-bar-container">
-                        <div class="progress-bar-fill" :style="`width: ${progressPercent}%`"></div>
-                        <span class="progress-percent" x-text="`${progressPercent}%`"></span>
-                    </div>
-                    <div class="current-substep">
-                        <div class="substep-icon">
-                            <span x-show="progressPercent < 30">&#129504;</span>
-                            <span x-show="progressPercent >= 30 && progressPercent < 50">&#128221;</span>
-                            <span x-show="progressPercent >= 50">&#9889;</span>
-                        </div>
-                        <div class="substep-text" x-text="currentSubstep"></div>
-                    </div>
-                    <div class="code-gen-indicator" x-show="codeGenerating">
-                        <div class="code-animation">
-                            <div class="code-line"></div>
-                            <div class="code-line"></div>
-                            <div class="code-line"></div>
-                        </div>
-                        <span>Generating Python code…</span>
-                    </div>
-                    <div class="exec-indicator" x-show="codeExecuting">
-                        <div class="terminal-animation">
-                            <span class="terminal-prompt">$</span>
-                            <span class="terminal-cursor"></span>
-                        </div>
-                        <span>Running detection…</span>
-                    </div>
-                    <div class="live-logs" x-show="liveLogStream.length > 0">
-                        <template x-for="log in liveLogStream.slice(-3)" :key="log.time + log.message">
-                            <div class="log-item">
-                                <span class="log-time" x-text="log.time"></span>
-                                <span class="log-msg" x-text="log.message"></span>
-                            </div>
-                        </template>
-                    </div>
+            <!-- Progress bar section -->
+            <div class="progress-section floating-status-card" x-show="isProcessing && step === 1">
+                <h3 class="panel-title">Analysis Progress</h3>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" :style="`width: ${progressPercent}%`"></div>
+                    <span class="progress-percent" x-text="`${progressPercent}%`"></span>
                 </div>
-
-                <!-- Workflow timeline -->
-                <div class="progress-timeline">
-                    <h3 class="panel-title">Workflow</h3>
-                    <div class="timeline-steps">
-                        <div class="timeline-step" :class="{'active': step >= 0, 'completed': step > 0}">
-                            <div class="step-indicator"></div>
-                            <span>Upload Image</span>
-                        </div>
-                        <div class="timeline-step" :class="{'active': step >= 1, 'completed': step > 1}">
-                            <div class="step-indicator"></div>
-                            <span>Vision Analysis</span>
-                        </div>
-                        <div class="timeline-step" :class="{'active': step >= 2, 'completed': step > 2}">
-                            <div class="step-indicator"></div>
-                            <span>Supplier Match</span>
-                        </div>
-                        <div class="timeline-step" :class="{'active': step >= 3, 'completed': step >= 4}">
-                            <div class="step-indicator"></div>
-                            <span>Place Order</span>
-                        </div>
+                <div class="current-substep">
+                    <div class="substep-icon">
+                        <span x-show="progressPercent < 30">&#129504;</span>
+                        <span x-show="progressPercent >= 30 && progressPercent < 50">&#128221;</span>
+                        <span x-show="progressPercent >= 50">&#9889;</span>
                     </div>
+                    <div class="substep-text" x-text="currentSubstep"></div>
+                </div>
+                <div class="code-gen-indicator" x-show="codeGenerating">
+                    <div class="code-animation">
+                        <div class="code-line"></div>
+                        <div class="code-line"></div>
+                        <div class="code-line"></div>
+                    </div>
+                    <span>Generating Python code…</span>
+                </div>
+                <div class="exec-indicator" x-show="codeExecuting">
+                    <div class="terminal-animation">
+                        <span class="terminal-prompt">$</span>
+                        <span class="terminal-cursor"></span>
+                    </div>
+                    <span>Running detection…</span>
+                </div>
+                <div class="live-logs" x-show="liveLogStream.length > 0">
+                    <template x-for="log in liveLogStream.slice(-3)" :key="log.time + log.message">
+                        <div class="log-item">
+                            <span class="log-time" x-text="log.time"></span>
+                            <span class="log-msg" x-text="log.message"></span>
+                        </div>
+                    </template>
                 </div>
             </div>
 
-            <!-- Agent activity (visible during processing) -->
-            <div class="agent-panel floating-status-card" :class="{'tint-vision': step === 1, 'tint-memory': step === 2, 'tint-action': step >= 3}" x-show="isProcessing || step > 0">
-                <h3 class="panel-title">Agent Activity</h3>
-                <div class="agent-activity">
-                    <div class="activity-text" x-text="orchestratorText || 'System ready'"></div>
-                    <div class="activity-indicator" x-show="isProcessing">
-                        <div class="pulse-dot"></div>
-                        <div class="pulse-dot"></div>
-                        <div class="pulse-dot"></div>
+            <!-- Vision result summary (after analysis complete) -->
+            <div class="floating-status-card" x-show="visionResult">
+                <h3 class="panel-title">Vision Result</h3>
+                <div class="vision-result-summary">
+                    <div class="result-stat">
+                        <span class="stat-value" x-text="visionResult?.item_count"></span>
+                        <span class="stat-label" x-text="visionResult?.item_type"></span>
+                    </div>
+                    <div class="result-stat">
+                        <span class="stat-value" x-text="visionResult?.confidence"></span>
+                        <span class="stat-label">confidence</span>
                     </div>
                 </div>
             </div>
@@ -430,7 +455,7 @@
                 <pre class="output-block" x-show="showOutput" x-text="executionOutput"></pre>
             </div>
 
-        </div> <!-- /floating-panels-container -->
+        </div> <!-- /right-panels-container -->
 
         <!-- ──────────────────────────────────
              A2A AGENT DISCOVERY MODAL

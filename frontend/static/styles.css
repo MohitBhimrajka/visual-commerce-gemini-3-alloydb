@@ -154,10 +154,11 @@ body::after {
   align-items: start;
 }
 
-/* When sidebar is needed (processing/results), switch to 2-col */
-.app-container.has-sidebar {
-  grid-template-columns: 1fr min(720px, 90vw) 320px 1fr;
-  gap: 0 var(--space-6);
+/* 3-column mission control layout during processing */
+.app-container.has-panels {
+  grid-template-columns: 280px 1fr 280px;
+  gap: 0 var(--space-4);
+  padding: var(--space-6) var(--space-4);
 }
 
 .main-glass-card {
@@ -183,7 +184,29 @@ body::after {
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
 }
 
-.floating-panels-container {
+/* Left panel — Agent Activity + Workflow */
+.left-panels-container {
+  grid-column: 1;
+  position: sticky;
+  top: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-height: calc(100vh - var(--space-16));
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+body.has-results .left-panels-container {
+  top: calc(52px + var(--space-6));
+}
+
+.left-panels-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* Right panel — Progress + Code */
+.right-panels-container {
   grid-column: 3;
   position: sticky;
   top: var(--space-8);
@@ -195,11 +218,11 @@ body::after {
   scrollbar-width: none;
 }
 
-body.has-results .floating-panels-container {
+body.has-results .right-panels-container {
   top: calc(52px + var(--space-6));
 }
 
-.floating-panels-container::-webkit-scrollbar {
+.right-panels-container::-webkit-scrollbar {
   display: none;
 }
 
@@ -1215,8 +1238,46 @@ body.has-results .fixed-controls {
   to { opacity: 1; transform: translateX(0); }
 }
 
+/* Left panels slide in from the left */
+.left-panels-container .floating-status-card {
+  animation-name: panelSlideInLeft;
+}
+
+@keyframes panelSlideInLeft {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 .floating-status-card:hover {
   border-color: var(--glass-border-hover);
+}
+
+/* Vision result summary (right panel) */
+.vision-result-summary {
+  display: flex;
+  gap: var(--space-4);
+  justify-content: center;
+}
+
+.result-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-100);
+}
+
+.stat-label {
+  font-size: 0.65rem;
+  color: var(--text-50);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .tint-vision {

@@ -51,22 +51,13 @@ def _detect_bounding_boxes(image_bytes: bytes) -> str:
             config=types.GenerateContentConfig(
                 system_instruction=bbox_system_instructions,
                 temperature=0.5,
+                response_mime_type="application/json",
                 thinking_config=types.ThinkingConfig(thinking_budget=0),
             )
         )
 
-        bbox_text = bbox_response.text.strip()
-        # Strip markdown code fencing if present
-        if bbox_text.startswith("```json"):
-            bbox_text = bbox_text[7:]
-        if bbox_text.startswith("```"):
-            bbox_text = bbox_text[3:]
-        if bbox_text.endswith("```"):
-            bbox_text = bbox_text[:-3]
-        bbox_text = bbox_text.strip()
-
-        # Validate it's valid JSON
-        parsed_boxes = json.loads(bbox_text)
+        # response_mime_type="application/json" guarantees valid JSON output
+        parsed_boxes = json.loads(bbox_response.text)
         logger.info(f"Detected {len(parsed_boxes)} bounding boxes")
         return json.dumps(parsed_boxes)
 

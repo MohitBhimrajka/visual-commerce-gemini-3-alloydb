@@ -32,6 +32,7 @@ function appState() {
 
         // Order result
         orderResult: null,
+        pendingOrder: null,  // Buffered order_placed event until user proceeds
 
         // Fake thoughts engine
         currentThought: '',
@@ -282,6 +283,28 @@ function appState() {
             this.showAgentDiscovery = false;
         },
 
+        // User clicks "Proceed to Order" after reviewing supplier match
+        proceedToOrder() {
+            this.step = 3;
+            this.orchestratorText = "Supplier Agent → Order System (Placing Order)";
+
+            // If order already arrived from backend, apply it
+            if (this.pendingOrder) {
+                this.applyOrder();
+            }
+        },
+
+        // Apply buffered order result
+        applyOrder() {
+            if (!this.pendingOrder) return;
+            this.playSuccess();
+            this.orderResult = this.pendingOrder;
+            this.pendingOrder = null;
+            this.orchestratorText = "Order Placed Successfully";
+            this.isProcessing = false;
+            this.step = 4;
+        },
+
         // Load sample images from backend
         async loadSampleImages() {
             try {
@@ -514,13 +537,8 @@ function appState() {
                         confidence: data.confidence
                     };
 
-                    this.orchestratorText = "Supplier Match Found";
-
-                    // Auto-advance to order stage
-                    setTimeout(() => {
-                        this.step = 3;
-                        this.orchestratorText = "Supplier Agent → Order System (Placing Order)";
-                    }, 2500);
+                    this.orchestratorText = "Supplier Match Found — Review & Proceed";
+                    // Don't auto-advance — user clicks "Proceed to Order" button
                     break;
 
                 case 'memory_error':
@@ -531,16 +549,16 @@ function appState() {
                     break;
 
                 case 'order_placed':
-                    this.playSuccess();
-
-                    this.orderResult = {
+                    // Buffer the order result — it arrives from backend automatically
+                    // but we only show it when user has proceeded to step 3+
+                    this.pendingOrder = {
                         orderId: data.order_id
                     };
 
-                    this.orchestratorText = "Order Placed Successfully";
-                    this.isProcessing = false;
-                    // Set step to 4 so step 3 ("Place Order") shows as completed
-                    this.step = 4;
+                    // If user already clicked proceed, apply immediately
+                    if (this.step >= 3) {
+                        this.applyOrder();
+                    }
                     break;
 
                 case 'pong':
@@ -588,6 +606,7 @@ function appState() {
             this.boundingBoxes = [];
             this.supplierResult = null;
             this.orderResult = null;
+            this.pendingOrder = null;
             this.orchestratorText = "System Ready";
             this.rawLogs = [];
 
