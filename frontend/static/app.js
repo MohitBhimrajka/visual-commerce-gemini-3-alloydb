@@ -102,6 +102,7 @@ function appState() {
             this.connectWebSocket();
             await this.loadSampleImages();
             this.initAudio();
+            this.setupAudioCleanup();
         },
 
         // Web Audio API initialization
@@ -114,11 +115,58 @@ function appState() {
             }
         },
 
+        // Setup audio cleanup on page unload
+        setupAudioCleanup() {
+            const cleanup = () => {
+                this.stopHum();
+                if (this.audioCtx) {
+                    try {
+                        // Immediately stop and disconnect all nodes
+                        if (this.humOscillator) {
+                            this.humOscillator.stop();
+                            this.humOscillator.disconnect();
+                            this.humOscillator = null;
+                        }
+                        if (this.humGain) {
+                            this.humGain.disconnect();
+                            this.humGain = null;
+                        }
+                        // Close the audio context to release all resources
+                        this.audioCtx.close();
+                        this.audioCtx = null;
+                    } catch (e) {
+                        console.warn('Audio cleanup error:', e);
+                    }
+                }
+            };
+
+            // Listen for page unload events
+            window.addEventListener('beforeunload', cleanup);
+            window.addEventListener('unload', cleanup);
+            window.addEventListener('pagehide', cleanup);
+            
+            // Also cleanup when visibility changes (page hidden)
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    cleanup();
+                }
+            });
+        },
+
         // Toggle audio
         toggleAudio() {
             this.audioEnabled = !this.audioEnabled;
-            if (!this.audioEnabled && this.humOscillator) {
+            if (!this.audioEnabled) {
                 this.stopHum();
+                // Also suspend the audio context to save resources
+                if (this.audioCtx && this.audioCtx.state === 'running') {
+                    this.audioCtx.suspend();
+                }
+            } else {
+                // Resume audio context if it was suspended
+                if (this.audioCtx && this.audioCtx.state === 'suspended') {
+                    this.audioCtx.resume();
+                }
             }
         },
 
@@ -149,16 +197,31 @@ function appState() {
         stopHum() {
             if (this.humOscillator && this.humGain) {
                 try {
+                    // Fade out smoothly
                     this.humGain.gain.linearRampToValueAtTime(0, this.audioCtx.currentTime + 0.3);
                     setTimeout(() => {
                         if (this.humOscillator) {
                             this.humOscillator.stop();
+                            this.humOscillator.disconnect();
                             this.humOscillator = null;
+                        }
+                        if (this.humGain) {
+                            this.humGain.disconnect();
                             this.humGain = null;
                         }
                     }, 350);
                 } catch (e) {
                     console.warn('Failed to stop hum:', e);
+                    // Force cleanup even if fade fails
+                    if (this.humOscillator) {
+                        try { this.humOscillator.stop(); } catch {}
+                        try { this.humOscillator.disconnect(); } catch {}
+                        this.humOscillator = null;
+                    }
+                    if (this.humGain) {
+                        try { this.humGain.disconnect(); } catch {}
+                        this.humGain = null;
+                    }
                 }
             }
         },
@@ -677,6 +740,11 @@ function appState() {
         resetUpload() {
             this.stopFakeThoughts();
             this.stopHum();
+            
+            // Ensure audio context is suspended when resetting
+            if (this.audioCtx && this.audioCtx.state === 'running') {
+                this.audioCtx.suspend();
+            }
 
             this.uploadedImage = null;
             this.uploadedFile = null;
