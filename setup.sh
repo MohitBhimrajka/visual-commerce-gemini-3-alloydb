@@ -1022,6 +1022,17 @@ python3 seed.py
 if [ $? -eq 0 ]; then
     echo ""
     echo "✅ Database seeded successfully!"
+    
+    # Generate test vectors for verification
+    echo ""
+    echo "📦 Generating test vectors for verification..."
+    # The test_vectors.json file already exists with pre-computed embeddings
+    # This step is a placeholder for future automated generation
+    if [ -f "$SCRIPT_DIR/agents/supplier-agent/test_vectors.json" ]; then
+        echo "✅ Test vectors file confirmed at agents/supplier-agent/test_vectors.json"
+    else
+        echo "⚠️  Warning: test_vectors.json not found (verification may use fallback)"
+    fi
 else
     echo ""
     echo "❌ Database seeding failed"

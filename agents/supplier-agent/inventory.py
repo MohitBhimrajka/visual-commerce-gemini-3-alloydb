@@ -5,6 +5,7 @@ Uses ScaNN (<=> cosine distance) for high-speed semantic retrieval.
 import json
 import logging
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv, find_dotenv
 import psycopg2
@@ -112,11 +113,19 @@ def get_embedding(text: str) -> list[float]:
 
 def main():
     """Run standalone verification with a test embedding."""
-    # Use a dummy embedding for standalone test (first row will be returned)
-    # In real use, get_embedding("Industrial Widget X-9") would be called
-    import random
-    random.seed(42)
-    test_embedding = [random.uniform(-0.1, 0.1) for _ in range(768)]
+    # Load real pre-computed embedding for "Industrial Widget X-9"
+    test_vectors_path = Path(__file__).parent / "test_vectors.json"
+    if test_vectors_path.exists():
+        with open(test_vectors_path) as f:
+            test_data = json.load(f)
+            test_embedding = test_data["industrial_widget_x9"]["embedding"]
+            print(f"Testing with real embedding for: {test_data['industrial_widget_x9']['description']}")
+    else:
+        # Fallback to random if file missing (shouldn't happen in normal use)
+        import random
+        random.seed(42)
+        test_embedding = [random.uniform(-0.1, 0.1) for _ in range(768)]
+        print("Warning: Using fallback random embedding (test_vectors.json not found)")
 
     result = find_supplier(test_embedding)
     if result:

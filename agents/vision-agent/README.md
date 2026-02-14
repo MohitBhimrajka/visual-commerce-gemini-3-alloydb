@@ -20,7 +20,7 @@ Instead of predicting, this agent:
 ## Technology
 
 - **Gemini 3 Flash** (`gemini-3-flash-preview`) with:
-  - `thinking_level="HIGH"` - Deep reasoning
+  - `thinking_level="LOW"` - Fast reasoning
   - `ToolCodeExecution` - Sandboxed Python execution
 - **Vertex AI SDK** - `google-genai` package
 - **A2A Protocol** - Agent discovery and communication
@@ -39,7 +39,7 @@ Instead of predicting, this agent:
 # 1. Configure Gemini with code execution
 config = types.GenerateContentConfig(
     temperature=0,
-    thinking_level="HIGH",  # Enable deep reasoning
+    thinking_level="LOW",
     tools=[types.Tool(code_execution=types.ToolCodeExecution())]
 )
 
@@ -138,13 +138,13 @@ export VISION_AGENT_URL=http://localhost:8081
 For faster (but less thorough) analysis:
 
 ```python
-thinking_level="MEDIUM"  # or "LOW"
+thinking_level="LOW"
 ```
 
 Cost tradeoff:
 - `HIGH`: Most accurate, slowest, most expensive
-- `MEDIUM`: Balanced (recommended for production)
-- `LOW`: Fastest, least accurate
+- `MEDIUM`: Balanced
+- `LOW`: Fastest (used in this codelab)
 
 ### Change Model
 

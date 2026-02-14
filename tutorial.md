@@ -139,7 +139,7 @@ You'll see two commented blocks. **Uncomment both:**
 1. The `thinking_config` block:
 ```python
 thinking_config=types.ThinkingConfig(
-    thinking_level=types.ThinkingLevel.HIGH  # Use MEDIUM in production
+    thinking_level=types.ThinkingLevel.LOW
 ),
 ```
 
