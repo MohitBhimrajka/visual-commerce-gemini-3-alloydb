@@ -236,13 +236,25 @@ fi
 python3 -m uvicorn main:app --host 0.0.0.0 --port 8081 > "$SCRIPT_DIR/logs/vision-agent.log" 2>&1 &
 VISION_PID=$!
 
-sleep 2
+# Health check with retries (Vision Agent takes longer to initialize)
+RETRY_COUNT=0
+MAX_RETRIES=10
+VISION_HEALTHY=false
 
-# Health check
-if curl -f -s http://localhost:8081/health > /dev/null 2>&1; then
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    sleep 1
+    if curl -f -s http://localhost:8081/health > /dev/null 2>&1; then
+        VISION_HEALTHY=true
+        break
+    fi
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+done
+
+if [ "$VISION_HEALTHY" = true ]; then
     echo "✅ Vision Agent running on port 8081 (PID: $VISION_PID)"
 else
-    echo "⚠️  Vision Agent started but health check failed (might need more time)"
+    echo "⚠️  Vision Agent started but health check failed after ${MAX_RETRIES}s"
+    echo "   Check logs/vision-agent.log for details"
 fi
 
 cd "$SCRIPT_DIR"
@@ -266,13 +278,25 @@ fi
 python3 -m uvicorn main:app --host 0.0.0.0 --port 8082 > "$SCRIPT_DIR/logs/supplier-agent.log" 2>&1 &
 SUPPLIER_PID=$!
 
-sleep 2
+# Health check with retries
+RETRY_COUNT=0
+MAX_RETRIES=10
+SUPPLIER_HEALTHY=false
 
-# Health check
-if curl -f -s http://localhost:8082/health > /dev/null 2>&1; then
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    sleep 1
+    if curl -f -s http://localhost:8082/health > /dev/null 2>&1; then
+        SUPPLIER_HEALTHY=true
+        break
+    fi
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+done
+
+if [ "$SUPPLIER_HEALTHY" = true ]; then
     echo "✅ Supplier Agent running on port 8082 (PID: $SUPPLIER_PID)"
 else
-    echo "⚠️  Supplier Agent started but health check failed (might need more time)"
+    echo "⚠️  Supplier Agent started but health check failed after ${MAX_RETRIES}s"
+    echo "   Check logs/supplier-agent.log for details"
 fi
 
 cd "$SCRIPT_DIR"
@@ -296,13 +320,25 @@ fi
 python3 -m uvicorn app:app --host 0.0.0.0 --port 8080 > "$SCRIPT_DIR/logs/frontend.log" 2>&1 &
 FRONTEND_PID=$!
 
-sleep 2
+# Health check with retries
+RETRY_COUNT=0
+MAX_RETRIES=10
+FRONTEND_HEALTHY=false
 
-# Health check
-if curl -f -s http://localhost:8080/api/health > /dev/null 2>&1; then
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    sleep 1
+    if curl -f -s http://localhost:8080/api/health > /dev/null 2>&1; then
+        FRONTEND_HEALTHY=true
+        break
+    fi
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+done
+
+if [ "$FRONTEND_HEALTHY" = true ]; then
     echo "✅ Control Tower running on port 8080 (PID: $FRONTEND_PID)"
 else
-    echo "⚠️  Control Tower started but health check failed (might need more time)"
+    echo "⚠️  Control Tower started but health check failed after ${MAX_RETRIES}s"
+    echo "   Check logs/frontend.log for details"
 fi
 
 cd "$SCRIPT_DIR"
