@@ -233,7 +233,7 @@ if [ ! -d "venv" ]; then
 fi
 
 # Start Vision Agent
-python3 -m uvicorn main:asgi_app --host 0.0.0.0 --port 8081 > "$SCRIPT_DIR/logs/vision-agent.log" 2>&1 &
+python3 -m uvicorn main:app --host 0.0.0.0 --port 8081 > "$SCRIPT_DIR/logs/vision-agent.log" 2>&1 &
 VISION_PID=$!
 
 sleep 2
@@ -263,7 +263,7 @@ if [ ! -d "venv" ]; then
 fi
 
 # Start Supplier Agent
-python3 -m uvicorn main:asgi_app --host 0.0.0.0 --port 8082 > "$SCRIPT_DIR/logs/supplier-agent.log" 2>&1 &
+python3 -m uvicorn main:app --host 0.0.0.0 --port 8082 > "$SCRIPT_DIR/logs/supplier-agent.log" 2>&1 &
 SUPPLIER_PID=$!
 
 sleep 2

@@ -5,22 +5,22 @@ Build an **agentic supply chain system** that "sees" physical inventory using Ge
 ## What You'll Build
 
 A multi-agent system featuring:
-- **Vision Agent**: Uses Gemini 3 Flash to count inventory items deterministically via code execution
-- **Supplier Agent**: Searches millions of parts using AlloyDB ScaNN vector search
-- **Control Tower**: Real-time WebSocket UI for orchestrating autonomous workflows
+- **Vision Agent**: Uses Gemini 3 Flash (MEDIUM thinking) to count inventory items deterministically via code execution, plus Gemini 2.5 Flash Lite for smart query generation with structured outputs
+- **Supplier Agent**: Searches millions of parts using AlloyDB ScaNN vector search with real semantic embeddings (Vertex AI text-embedding-005)
+- **Control Tower**: Real-time WebSocket UI with automatic image compression for orchestrating autonomous workflows
 
 ## Architecture
 
 ![Autonomous Supply Chain Architecture](./assets/architecture-diagram.png)
 
 **Key Components:**
-- **Control Tower (port 8080):** WebSocket-based UI for real-time orchestration and agent coordination
-- **Vision Agent (port 8081):** Gemini 3 Flash with Code Execution for deterministic vision (API key)
-- **Supplier Agent (port 8082):** AlloyDB ScaNN vector search for semantic part matching (GCP credentials)
-- **AlloyDB AI:** Enterprise PostgreSQL with ScaNN index for fast nearest-neighbor search
+- **Control Tower (port 8080):** WebSocket-based UI with automatic image compression for real-time orchestration
+- **Vision Agent (port 8081):** Gemini 3 Flash (MEDIUM thinking) with Code Execution + Gemini 2.5 Flash Lite for query generation (API key)
+- **Supplier Agent (port 8082):** AlloyDB ScaNN vector search with real semantic embeddings from Vertex AI (GCP credentials)
+- **AlloyDB AI:** Enterprise PostgreSQL with ScaNN index and text-embedding-005 for semantic understanding
 - **A2A Protocol:** Dynamic agent discovery via `/.well-known/agent-card.json`
 
-**Hybrid Architecture:** Vision Agent uses Gemini API (simple setup, free tier available), while Supplier Agent uses GCP services (enterprise-grade, compliance-ready).
+**Hybrid Architecture:** Vision Agent uses Gemini API (simple setup, free tier available), while Supplier Agent uses GCP services (enterprise-grade, compliance-ready). Image optimization and intelligent query generation happen automatically.
 
 ## Quick Start
 
@@ -85,24 +85,26 @@ visual-commerce-gemini-3-alloydb/
 ### `./setup.sh`
 
 1. **Validates environment** - Checks gcloud, APIs, project settings
-2. **Clones infrastructure tool** - Gets AlloyDB setup tool
-3. **Launches setup UI** - Guides you through AlloyDB provisioning (~15 min)
-4. **Enables Public IP** - If on Cloud Shell, offers to enable Public IP (secure: mTLS + IAM + password complexity)
-5. **Seeds database** - Populates inventory with sample data and creates ScaNN index
+2. **Configures AlloyDB** - Prompts for Public IP and authorized networks (Cloud Shell auto-detects, local machine prompts for security settings)
+3. **Provisions infrastructure** - Creates AlloyDB instance (~15 min if new)
+4. **Seeds database with real embeddings** - Populates inventory with sample data using Vertex AI text-embedding-005 (~30 seconds for semantic embeddings)
+5. **Creates ScaNN index** - Builds high-performance vector search index
 
 ### `./run.sh`
 
-1. **Starts AlloyDB Auth Proxy** - Creates secure tunnel to database (uses `--public-ip` if available)
-2. **Launches Vision Agent** - Port 8081 (Gemini 3 Flash)
-3. **Launches Supplier Agent** - Port 8082 (AlloyDB ScaNN)
-4. **Starts Control Tower** - Port 8080 (FastAPI + WebSocket UI)
+1. **Starts AlloyDB Auth Proxy** - Creates secure tunnel to database (auto-detects Public IP for Cloud Shell or local)
+2. **Launches Vision Agent** - Port 8081 (Gemini 3 Flash MEDIUM thinking + Gemini 2.5 Flash Lite query generation)
+3. **Launches Supplier Agent** - Port 8082 (AlloyDB ScaNN with real semantic embeddings)
+4. **Starts Control Tower** - Port 8080 (FastAPI + WebSocket UI with automatic image compression)
 
 ## Key Technologies
 
-- **Gemini 3 Flash** - AI model with code execution for deterministic vision
-- **AlloyDB AI** - PostgreSQL-compatible database with ScaNN vector search
-- **A2A Protocol** - Agent-to-Agent communication standard
-- **FastAPI** - Modern Python web framework with WebSocket support
+- **Gemini 3 Flash** - AI model with MEDIUM thinking level and code execution for deterministic vision analysis
+- **Gemini 2.5 Flash Lite** - Fast LLM for semantic query generation with structured outputs (Pydantic models)
+- **AlloyDB AI** - PostgreSQL-compatible database with ScaNN vector search (10x faster than HNSW)
+- **Vertex AI text-embedding-005** - Real semantic embeddings for accurate similarity matching
+- **A2A Protocol** - Agent-to-Agent communication standard for plug-and-play agent composition
+- **FastAPI** - Modern Python web framework with WebSocket support and PIL-based image compression
 
 ## Troubleshooting
 
@@ -116,6 +118,8 @@ lsof -ti:8082 | xargs kill -9
 
 ### AlloyDB connection issues
 
+**Symptom**: `connection to server at 127.0.0.1, port 5432 failed`
+
 ```bash
 # 1. Check if Auth Proxy is running
 ps aux | grep alloydb-auth-proxy
@@ -126,11 +130,34 @@ tail -50 logs/proxy.log
 
 **Common causes:**
 
-1. **Wrong password** - Check `.env`: `cat .env | grep DB_PASS`
-2. **Proxy not running** - Restart with `./run.sh`
-3. **Port 5432 in use** - Kill existing process: `lsof -ti:5432 | xargs kill -9`
+1. **Auth Proxy not running** - Check: `ps aux | grep alloydb-auth-proxy`
+2. **Public IP not enabled** - Verify: `gcloud alloydb instances describe INSTANCE_NAME`
+3. **Authorized networks not configured (local machine only)**
+   - **Cloud Shell**: Works automatically via internal networking
+   - **Local machine**: Requires authorized external networks (setup.sh prompts for this)
+4. **Wrong password** - Check `.env`: `cat .env | grep DB_PASS`
+5. **Port 5432 in use** - Kill existing process: `lsof -ti:5432 | xargs kill -9`
 
-> **Why do I need the Auth Proxy?** AlloyDB's private IP (172.21.0.x) is only reachable from inside the VPC. Cloud Shell runs outside the VPC. The Auth Proxy creates a secure mTLS tunnel from `127.0.0.1:5432` to your AlloyDB instance. If Public IP is enabled, the proxy connects via the public endpoint.
+**Fix for local development:**
+- Re-run `sh setup.sh` to configure authorized networks
+- When prompted, choose option 1 (0.0.0.0/0) for development/testing
+- Note: Even with 0.0.0.0/0, Auth Proxy requires valid GCP credentials (ADC) + database password
+
+> **Why do I need the Auth Proxy?** AlloyDB's private IP (172.21.0.x) is only reachable from inside the VPC. The Auth Proxy creates a secure mTLS tunnel from `127.0.0.1:5432` to your AlloyDB instance. It auto-detects Public IP and connects securely.
+
+### Cloud Shell vs Local Development
+
+**Cloud Shell (Recommended)**:
+- Automatic networking configuration
+- No authorized networks needed
+- Works out of the box
+
+**Local Machine**:
+- Requires AlloyDB Public IP enabled
+- Requires authorized external networks configured
+- During setup, you'll be prompted to:
+  - Enable Public IP (secure: mTLS + ADC + password)
+  - Configure authorized networks (0.0.0.0/0 for dev, or specific IP for security)
 
 ### Agent not responding
 

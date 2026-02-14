@@ -14,6 +14,8 @@ class SupplierAgentExecutor(AgentExecutor):
     """A2A executor that searches inventory via AlloyDB ScaNN vector search."""
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        import sys
+        
         # Handle API change: try different attribute names for message
         message = getattr(context, 'message', None) or getattr(context, 'request_message', None)
         parts = message.parts if message and hasattr(message, 'parts') else []
@@ -22,7 +24,10 @@ class SupplierAgentExecutor(AgentExecutor):
         embedding = None
 
         for p in parts:
+            # Try both p.text and p.root.text (API structure varies)
             text = getattr(p, "text", None)
+            if not text and hasattr(p, "root"):
+                text = getattr(p.root, "text", None)
             if text:
                 try:
                     data = json.loads(text)
@@ -46,12 +51,17 @@ class SupplierAgentExecutor(AgentExecutor):
                 emb = get_embedding(query)
 
             result = find_supplier(emb)
+            
             if not result:
                 await event_queue.enqueue_event(
                     new_agent_text_message("No matching supplier found in inventory.")
                 )
                 return
         except Exception as e:
+            import traceback
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Supplier agent exception: {e}", exc_info=True)
             await event_queue.enqueue_event(
                 new_agent_text_message(f"Database error: {str(e)}")
             )
@@ -60,6 +70,11 @@ class SupplierAgentExecutor(AgentExecutor):
         part_name, supplier_name = result[:2]
         distance = result[2] if len(result) > 2 else None
         confidence = f"{max(0, 100 - (distance or 0) * 100):.1f}%" if distance else "99.8%"
+        
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Supplier match: {part_name} from {supplier_name} ({confidence})")
+        
         out = {
             "part": part_name,
             "supplier": supplier_name,

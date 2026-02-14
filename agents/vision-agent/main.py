@@ -36,8 +36,8 @@ request_handler = DefaultRequestHandler(
     task_store=InMemoryTaskStore(),
 )
 
-app = A2AStarletteApplication(agent_card=agent_card, http_handler=request_handler)
-asgi_app = app.build()
+a2a_app = A2AStarletteApplication(agent_card=agent_card, http_handler=request_handler)
+app = a2a_app.build()
 
 # Add health check endpoint
 from starlette.responses import JSONResponse
@@ -47,7 +47,7 @@ async def health(request):
     """Health check endpoint for monitoring."""
     return JSONResponse({"status": "healthy", "agent": "vision"})
 
-asgi_app.routes.append(Route("/health", health, methods=["GET"]))
+app.routes.append(Route("/health", health, methods=["GET"]))
 
 if __name__ == "__main__":
-    uvicorn.run(asgi_app, host="0.0.0.0", port=8081)
+    uvicorn.run(app, host="0.0.0.0", port=8081)

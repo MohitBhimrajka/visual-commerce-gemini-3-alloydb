@@ -2,4 +2,5 @@ a2a-sdk[http-server]
 google-genai
 uvicorn
 Pillow
+pydantic
 python-dotenv

@@ -5,9 +5,12 @@ Real-time updates via WebSockets.
 """
 import asyncio
 import base64
+import io
 import json
+import logging
 import os
 import random
+import sys
 from pathlib import Path
 from typing import Set
 from uuid import uuid4
@@ -18,9 +21,23 @@ from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
+from PIL import Image
 
 from a2a.client import A2ACardResolver, A2AClient
 from a2a.types import MessageSendParams, SendMessageRequest
+
+# Configure comprehensive logging with environment-based level
+log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, log_level, logging.INFO),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.StreamHandler(sys.stderr)
+    ]
+)
+logger = logging.getLogger(__name__)
+logger.info(f"Logging initialized at {log_level} level")
 
 # Load environment variables from .env file (searches up directory tree)
 load_dotenv(find_dotenv(usecwd=True))
@@ -68,18 +85,87 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+def compress_image(image_bytes: bytes, max_size_kb: int = 500) -> bytes:
+    """
+    Compress image to stay under max_size_kb while maintaining reasonable quality.
+    Resizes if needed to keep payload under A2A protocol limits.
+    """
+    img = Image.open(io.BytesIO(image_bytes))
+    
+    # Convert to RGB if necessary (removes alpha channel)
+    if img.mode in ('RGBA', 'LA', 'P'):
+        img = img.convert('RGB')
+    
+    # Start with max dimension of 1024px (good for vision analysis)
+    max_dimension = 1024
+    quality = 85
+    
+    while max_dimension >= 256:  # Don't go below 256px
+        # Resize maintaining aspect ratio
+        img_copy = img.copy()
+        img_copy.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+        
+        # Compress to JPEG
+        output = io.BytesIO()
+        img_copy.save(output, format='JPEG', quality=quality, optimize=True)
+        compressed_bytes = output.getvalue()
+        
+        # Check size
+        size_kb = len(compressed_bytes) / 1024
+        if size_kb <= max_size_kb:
+            return compressed_bytes
+        
+        # Try reducing quality or dimension
+        if quality > 60:
+            quality -= 10
+        else:
+            max_dimension = int(max_dimension * 0.8)
+            quality = 85
+    
+    # If still too large, return best effort
+    return compressed_bytes
+
+
 def extract_text_from_response(response) -> str:
-    """Extract text from A2A response artifact or messages."""
+    """Extract text from A2A response (supports both old and new SDK formats)."""
     text = ""
-    if hasattr(response, "artifact") and response.artifact:
+    
+    # New SDK format: response.root.result.parts[].root.text
+    if hasattr(response, "root"):
+        root = response.root
+        # Check if it's a success response with result
+        if hasattr(root, "result"):
+            result = root.result
+            # Result is a Message object with parts
+            if hasattr(result, "parts"):
+                for part in (result.parts or []):
+                    # Part has a root attribute containing TextPart
+                    if hasattr(part, "root") and hasattr(part.root, "text"):
+                        if part.root.text:
+                            text += part.root.text
+    
+    # Old SDK format: response.artifact.parts[].text
+    if not text and hasattr(response, "artifact") and response.artifact:
         for part in getattr(response.artifact, "parts", []) or []:
-            if hasattr(part, "text"):
-                text += part.text
+            part_text = getattr(part, "text", None)
+            if not part_text and hasattr(part, "root"):
+                part_text = getattr(part.root, "text", None)
+            if part_text:
+                text += part_text
+    
+    # Old SDK format: response.messages[].parts[].text
     if not text and hasattr(response, "messages"):
         for msg in (response.messages or []):
             for part in getattr(msg, "parts", []) or []:
-                if hasattr(part, "text"):
+                part_text = getattr(part, "text", None)
+                if not part_text and hasattr(part, "root"):
+                    part_text = getattr(part.root, "text", None)
+                if part_text:
                     text += part.text
+    
+    if not text:
+        logger.warning(f"Failed to extract text from A2A response. Response type: {type(response)}")
+    
     return text
 
 
@@ -185,8 +271,14 @@ async def run_workflow_with_events(image_bytes: bytes):
                 "timestamp": asyncio.get_event_loop().time()
             })
             
+            # Compress image before sending to Vision Agent (prevents "Payload too large" errors)
+            original_size_kb = len(image_bytes) / 1024
+            compressed_bytes = compress_image(image_bytes, max_size_kb=500)
+            compressed_size_kb = len(compressed_bytes) / 1024
+            logger.info(f"Image compression: {original_size_kb:.1f}KB -> {compressed_size_kb:.1f}KB")
+            
             payload = json.dumps({
-                "image_base64": base64.b64encode(image_bytes).decode("utf-8"),
+                "image_base64": base64.b64encode(compressed_bytes).decode("utf-8"),
                 "query": "Write code to count the exact number of boxes on this shelf.",
             })
             

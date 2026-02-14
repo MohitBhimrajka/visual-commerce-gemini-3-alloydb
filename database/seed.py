@@ -18,6 +18,9 @@ SCRIPT_DIR = Path(__file__).parent
 SEED_SQL = SCRIPT_DIR / "seed_data.sql"
 
 SAMPLE_PARTS = [
+    ("Cardboard Shipping Box Large", "Packaging Solutions Inc", "Heavy-duty corrugated cardboard shipping container", 250),
+    ("Warehouse Storage Container", "Industrial Supply Co", "Stackable plastic storage bin with lid", 180),
+    ("Product Shipping Boxes", "Acme Packaging", "Medium corrugated boxes for warehouse storage", 320),
     ("Industrial Widget X-9", "Acme Corp", "Heavy-duty industrial coupling", 50),
     ("Precision Bolt M4", "Global Fasteners Inc", "Stainless steel allen bolt", 200),
     ("Hexagonal Nut M6", "Metro Supply Co", "Galvanized steel nut", 150),
@@ -26,19 +29,24 @@ SAMPLE_PARTS = [
     ("Rubber Gasket Small", "SealTech Industries", "Buna-N gasket", 120),
     ("Spring Tension 5kg", "Mechanical Parts Co", "Compression spring", 60),
     ("Bearing 6204", "Bearings Direct", "Deep groove ball bearing", 45),
+    ("Warehouse Shelf Boxes", "Storage Systems Ltd", "Standardized warehouse inventory boxes", 400),
+    ("Inventory Container Units", "Supply Chain Pros", "Modular storage units for warehouse", 95),
 ]
 
 
-def generate_vector(dim: int = 768, seed: int | None = None) -> str:
-    """Generate a random normalized vector as PostgreSQL vector literal."""
-    if seed is not None:
-        random.seed(seed)
-    values = [random.uniform(-0.5, 0.5) for _ in range(dim)]
-    # Normalize for cosine distance (ScaNN <=> operator returns distance, not similarity)
-    magnitude = sum(v * v for v in values) ** 0.5
-    if magnitude > 0:
-        values = [v / magnitude for v in values]
-    return "[" + ",".join(str(round(v, 6)) for v in values) + "]"
+def generate_real_embedding(text: str) -> list[float]:
+    """Generate real semantic embedding using Vertex AI."""
+    import vertexai
+    from vertexai.language_models import TextEmbeddingModel
+    
+    project = os.environ.get("GOOGLE_CLOUD_PROJECT")
+    if not project:
+        raise ValueError("GOOGLE_CLOUD_PROJECT environment variable not set")
+    
+    vertexai.init(project=project, location="us-central1")
+    model = TextEmbeddingModel.from_pretrained("text-embedding-005")
+    embeddings = model.get_embeddings([text])
+    return embeddings[0].values
 
 
 def main():
@@ -92,18 +100,34 @@ def main():
             cur.execute("TRUNCATE inventory RESTART IDENTITY;")
         conn.commit()
 
-        # Insert sample rows
+        # Insert sample rows with REAL semantic embeddings (REQUIRED)
+        print("Generating semantic embeddings via Vertex AI...")
+        print("(This takes ~30 seconds for 13 items)")
+        
         with conn.cursor() as cur:
             for i, (part_name, supplier_name, description, stock) in enumerate(SAMPLE_PARTS):
-                vec = generate_vector(seed=i)
-                cur.execute(
-                    """
-                    INSERT INTO inventory (part_name, supplier_name, description, stock_level, part_embedding)
-                    VALUES (%s, %s, %s, %s, %s::vector)
-                    """,
-                    (part_name, supplier_name, description, stock, vec),
-                )
+                # Generate real embedding from part name + description
+                text_to_embed = f"{part_name}. {description}"
+                print(f"  [{i+1}/13] Embedding: {part_name}...")
+                
+                try:
+                    embedding_values = generate_real_embedding(text_to_embed)
+                    vec = "[" + ",".join(str(v) for v in embedding_values) + "]"
+                    
+                    cur.execute(
+                        """
+                        INSERT INTO inventory (part_name, supplier_name, description, stock_level, part_embedding)
+                        VALUES (%s, %s, %s, %s, %s::vector)
+                        """,
+                        (part_name, supplier_name, description, stock, vec),
+                    )
+                except Exception as e:
+                    print(f"    ❌ Failed to generate embedding: {e}")
+                    print(f"    Skipping {part_name}")
+                    continue
+        
         conn.commit()
+        print("✅ Semantic embeddings generated")
 
         # Create ScaNN index (after data exists)
         with conn.cursor() as cur:

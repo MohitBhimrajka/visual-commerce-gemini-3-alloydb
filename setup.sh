@@ -1,7 +1,7 @@
 #!/bin/bash
 # Autonomous Supply Chain - Master Setup Script
 # Run this ONCE to provision AlloyDB infrastructure and seed database
-# Usage: ./setup.sh
+# Usage: sh setup.sh
 
 set -e
 
@@ -350,7 +350,7 @@ if [ -n "$EXISTING_INSTANCES" ]; then
     echo "✅ Found $INSTANCE_COUNT existing AlloyDB instance(s)"
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "📦 AlloyDB Already Provisioned"
+    echo "📦 Existing AlloyDB Instance(s) Detected"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     echo "Detected existing AlloyDB instance(s):"
@@ -359,9 +359,25 @@ if [ -n "$EXISTING_INSTANCES" ]; then
         echo "  • ${ALLOYDB_CLUSTER}/${ALLOYDB_INSTANCE} in ${ALLOYDB_REGION}"
     done <<< "$EXISTING_INSTANCES"
     echo ""
-    echo "Skipping infrastructure provisioning (already exists)."
+    echo "What would you like to do?"
+    echo "  1) Use existing instance (recommended - saves 15 minutes)"
+    echo "  2) Create a new instance (for separate projects/testing)"
     echo ""
-    SKIP_INFRA_SETUP=true
+    read -p "Enter your choice (1 or 2): " -n 1 -r INSTANCE_CHOICE
+    echo ""
+    echo ""
+    
+    if [[ $INSTANCE_CHOICE == "1" ]]; then
+        echo "✅ Will use existing instance"
+        SKIP_INFRA_SETUP=true
+    elif [[ $INSTANCE_CHOICE == "2" ]]; then
+        echo "📦 Will provision a new instance (~15 minutes)"
+        SKIP_INFRA_SETUP=false
+    else
+        echo "⚠️  Invalid choice. Defaulting to use existing instance (safer option)."
+        SKIP_INFRA_SETUP=true
+    fi
+    echo ""
 else
     echo "ℹ️  No existing AlloyDB instance found"
     echo ""
@@ -583,11 +599,11 @@ if curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeM
             else
                 echo ""
                 echo "⚠️  Credentials setup completed, but file location unclear"
-                echo "   Auth Proxy may have issues - re-run ./setup.sh if needed"
+                echo "   Auth Proxy may have issues - re-run 'sh setup.sh' if needed"
             fi
         else
             echo "⚠️  Skipping credential setup - Auth Proxy will likely fail"
-            echo "   Re-run ./setup.sh later to fix authentication"
+            echo "   Re-run 'sh setup.sh' later to fix authentication"
         fi
     else
         echo "✅ Application Default Credentials found"
@@ -781,6 +797,81 @@ else
     fi
 fi
 
+# ============================================================================
+# Configure Authorized Networks for Public IP Access
+# ============================================================================
+if [ -n "$PUBLIC_IP" ]; then
+    echo ""
+    echo "🔒 Checking authorized networks configuration..."
+    
+    # Check if 0.0.0.0/0 is already authorized
+    CURRENT_NETWORKS=$(gcloud alloydb instances describe "$ALLOYDB_INSTANCE" \
+        --cluster="$ALLOYDB_CLUSTER" \
+        --region="$ALLOYDB_REGION" \
+        --format="value(clientConnectionConfig.requireConnectors)" 2>/dev/null)
+    
+    # For local development outside GCP, we need to authorize external access
+    if [ -z "$CLOUD_SHELL" ] && [ ! -d /google ]; then
+        echo "   Local machine detected (not Cloud Shell/GCE)"
+        echo ""
+        echo "   ⚠️  SECURITY WARNING:"
+        echo "   To connect from your local machine, AlloyDB needs authorized networks configured."
+        echo ""
+        echo "   Options:"
+        echo "   1. Authorize 0.0.0.0/0 (any IP) - Convenient for development/testing"
+        echo "   2. Authorize only your current IP - More secure"
+        echo "   3. Skip - Only works if you're on the VPC or using Cloud NAT"
+        echo ""
+        echo "   Note: Even with 0.0.0.0/0, connections are secure because:"
+        echo "   - Auth Proxy requires valid GCP credentials (ADC)"
+        echo "   - All traffic is mTLS encrypted"
+        echo "   - Database password is still required"
+        echo ""
+        read -p "   Configure authorized networks? (1=All IPs/2=My IP/N=Skip): " -n 1 -r
+        echo ""
+        
+        if [[ $REPLY =~ ^[1]$ ]]; then
+            echo "   Authorizing all external IPs (0.0.0.0/0)..."
+            if gcloud alloydb instances update "$ALLOYDB_INSTANCE" \
+                --cluster="$ALLOYDB_CLUSTER" \
+                --region="$ALLOYDB_REGION" \
+                --authorized-external-networks=0.0.0.0/0 \
+                --quiet 2>&1; then
+                echo "   ✅ Authorized networks configured: 0.0.0.0/0"
+            else
+                echo "   ⚠️  Failed to configure authorized networks"
+                echo "   You can configure manually:"
+                echo "   gcloud alloydb instances update $ALLOYDB_INSTANCE \\"
+                echo "     --cluster=$ALLOYDB_CLUSTER --region=$ALLOYDB_REGION \\"
+                echo "     --authorized-external-networks=0.0.0.0/0"
+            fi
+        elif [[ $REPLY =~ ^[2]$ ]]; then
+            echo "   Getting your current IP address..."
+            MY_IP=$(curl -s https://api.ipify.org)
+            if [ -n "$MY_IP" ]; then
+                echo "   Your IP: $MY_IP"
+                echo "   Authorizing $MY_IP/32..."
+                if gcloud alloydb instances update "$ALLOYDB_INSTANCE" \
+                    --cluster="$ALLOYDB_CLUSTER" \
+                    --region="$ALLOYDB_REGION" \
+                    --authorized-external-networks="$MY_IP/32" \
+                    --quiet 2>&1; then
+                    echo "   ✅ Authorized networks configured: $MY_IP/32"
+                else
+                    echo "   ⚠️  Failed to configure authorized networks"
+                fi
+            else
+                echo "   ❌ Could not determine your IP address"
+            fi
+        else
+            echo "   Skipping authorized networks configuration"
+            echo "   ⚠️  Connection may fail if you're not on the VPC"
+        fi
+    else
+        echo "   Cloud Shell/GCE detected - authorized networks not required"
+    fi
+fi
+
 # Check if proxy is already running
 EXISTING_PROXY_PID=$(pgrep -f "alloydb-auth-proxy" 2>/dev/null | head -n 1)
 if [ -n "$EXISTING_PROXY_PID" ]; then
@@ -795,13 +886,9 @@ echo "🚀 Starting Auth Proxy with fresh credentials..."
 # Ensure logs directory exists
 mkdir -p "$SCRIPT_DIR/logs"
 
-if [ -n "$PUBLIC_IP" ]; then
-    echo "   ✅ Public IP detected: $PUBLIC_IP (using --public-ip flag)"
-    nohup "$PROXY_BINARY" "$INSTANCE_URI" --public-ip > "$SCRIPT_DIR/logs/proxy.log" 2>&1 &
-else
-    echo "   Using private IP connection"
-    nohup "$PROXY_BINARY" "$INSTANCE_URI" > "$SCRIPT_DIR/logs/proxy.log" 2>&1 &
-fi
+# Start proxy without --public-ip flag (auto-detects connection method)
+echo "   Starting proxy with automatic connection detection..."
+nohup "$PROXY_BINARY" "$INSTANCE_URI" > "$SCRIPT_DIR/logs/proxy.log" 2>&1 &
 
 PROXY_PID=$!
 echo "   PID: $PROXY_PID (logs: logs/proxy.log)"
@@ -830,7 +917,7 @@ for i in {1..30}; do
             echo ""
             echo "FIX: Re-download the correct binary:"
             echo "  1. Remove corrupted binary: rm alloydb-auth-proxy"
-            echo "  2. Re-run setup: ./setup.sh"
+            echo "  2. Re-run setup: sh setup.sh"
             echo ""
             echo "Or manually download:"
             echo "  wget $PROXY_URL -O alloydb-auth-proxy && chmod +x alloydb-auth-proxy"
@@ -922,11 +1009,11 @@ echo "╔═══════════════════════�
 echo "║  🎉 Setup Complete!                            ║"
 echo "╠════════════════════════════════════════════════╣"
 echo "║  Next steps:                                   ║"
-echo "║  1. Run './run.sh' to start all services       ║"
+echo "║  1. Run 'sh run.sh' to start all services      ║"
 echo "║  2. Open http://localhost:8080                 ║"
 echo "║  3. Upload an image and watch the magic! ✨    ║"
 echo "║                                                ║"
-echo "║  Sample images available in test-images/       ║"
+echo "║  Sample images available in assets/samples/    ║"
 echo "╚════════════════════════════════════════════════╝"
 echo ""
 if [ -f "$SCRIPT_DIR/.env" ]; then
