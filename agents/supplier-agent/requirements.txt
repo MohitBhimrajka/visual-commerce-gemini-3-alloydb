@@ -2,5 +2,5 @@ a2a-sdk[http-server]
 psycopg2-binary
 pgvector
 uvicorn
-google-cloud-aiplatform
+google-genai
 python-dotenv

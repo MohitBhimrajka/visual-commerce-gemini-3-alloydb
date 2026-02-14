@@ -105,14 +105,19 @@ psycopg2.connect(
 
 ## Vector Embeddings
 
-Embeddings are generated using Vertex AI:
+Embeddings are generated using Google Gen AI SDK:
 
 ```python
-from vertexai.language_models import TextEmbeddingModel
+from google import genai
+from google.genai.types import EmbedContentConfig
 
-model = TextEmbeddingModel.from_pretrained("text-embedding-005")
-embeddings = model.get_embeddings(["Industrial Widget X-9"])
-vector = embeddings[0].values  # 768-dimensional float array
+client = genai.Client(vertexai=True, project="your-project", location="us-central1")
+response = client.models.embed_content(
+    model="text-embedding-005",
+    contents=["Industrial Widget X-9"],
+    config=EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT", output_dimensionality=768)
+)
+vector = response.embeddings[0].values  # 768-dimensional float array
 ```
 
 ## Troubleshooting

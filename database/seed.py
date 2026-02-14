@@ -7,6 +7,7 @@ import random
 import sys
 import time
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from dotenv import load_dotenv, find_dotenv
 import psycopg2
@@ -35,18 +36,32 @@ SAMPLE_PARTS = [
 
 
 def generate_real_embedding(text: str) -> list[float]:
-    """Generate real semantic embedding using Vertex AI."""
-    import vertexai
-    from vertexai.language_models import TextEmbeddingModel
+    """Generate real semantic embedding using Google Gen AI SDK."""
+    from google import genai
+    from google.genai.types import EmbedContentConfig
     
     project = os.environ.get("GOOGLE_CLOUD_PROJECT")
     if not project:
         raise ValueError("GOOGLE_CLOUD_PROJECT environment variable not set")
     
-    vertexai.init(project=project, location="us-central1")
-    model = TextEmbeddingModel.from_pretrained("text-embedding-005")
-    embeddings = model.get_embeddings([text])
-    return embeddings[0].values
+    # Initialize Gen AI client with Vertex AI
+    client = genai.Client(
+        vertexai=True,
+        project=project,
+        location="us-central1"
+    )
+    
+    # Generate embedding using gemini-embedding-001 (768 dimensions)
+    response = client.models.embed_content(
+        model="text-embedding-005",  # 768 dimensions, optimized for English/code
+        contents=[text],
+        config=EmbedContentConfig(
+            task_type="RETRIEVAL_DOCUMENT",
+            output_dimensionality=768
+        )
+    )
+    
+    return response.embeddings[0].values
 
 
 def main():
@@ -102,29 +117,52 @@ def main():
 
         # Insert sample rows with REAL semantic embeddings (REQUIRED)
         print("Generating semantic embeddings via Vertex AI...")
-        print("(This takes ~30 seconds for 13 items)")
+        print("(Parallelizing requests - should complete in ~10 seconds)")
         
+        # Generate all embeddings in parallel
+        def generate_embedding_task(item):
+            """Generate embedding for a single item."""
+            i, (part_name, supplier_name, description, stock) = item
+            text_to_embed = f"{part_name}. {description}"
+            print(f"  [{i+1}/{len(SAMPLE_PARTS)}] Embedding: {part_name}...")
+            try:
+                embedding_values = generate_real_embedding(text_to_embed)
+                return (i, part_name, supplier_name, description, stock, embedding_values, None)
+            except Exception as e:
+                return (i, part_name, supplier_name, description, stock, None, str(e))
+        
+        # Use ThreadPoolExecutor for parallel API calls
+        results = []
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            # Submit all tasks
+            futures = {
+                executor.submit(generate_embedding_task, (i, item)): i 
+                for i, item in enumerate(SAMPLE_PARTS)
+            }
+            
+            # Collect results as they complete
+            for future in as_completed(futures):
+                results.append(future.result())
+        
+        # Sort results by original index to maintain order
+        results.sort(key=lambda x: x[0])
+        
+        # Insert all results into database
         with conn.cursor() as cur:
-            for i, (part_name, supplier_name, description, stock) in enumerate(SAMPLE_PARTS):
-                # Generate real embedding from part name + description
-                text_to_embed = f"{part_name}. {description}"
-                print(f"  [{i+1}/13] Embedding: {part_name}...")
-                
-                try:
-                    embedding_values = generate_real_embedding(text_to_embed)
-                    vec = "[" + ",".join(str(v) for v in embedding_values) + "]"
-                    
-                    cur.execute(
-                        """
-                        INSERT INTO inventory (part_name, supplier_name, description, stock_level, part_embedding)
-                        VALUES (%s, %s, %s, %s, %s::vector)
-                        """,
-                        (part_name, supplier_name, description, stock, vec),
-                    )
-                except Exception as e:
-                    print(f"    ❌ Failed to generate embedding: {e}")
+            for i, part_name, supplier_name, description, stock, embedding_values, error in results:
+                if error:
+                    print(f"    ❌ Failed to generate embedding for {part_name}: {error}")
                     print(f"    Skipping {part_name}")
                     continue
+                
+                vec = "[" + ",".join(str(v) for v in embedding_values) + "]"
+                cur.execute(
+                    """
+                    INSERT INTO inventory (part_name, supplier_name, description, stock_level, part_embedding)
+                    VALUES (%s, %s, %s, %s, %s::vector)
+                    """,
+                    (part_name, supplier_name, description, stock, vec),
+                )
         
         conn.commit()
         print("✅ Semantic embeddings generated")

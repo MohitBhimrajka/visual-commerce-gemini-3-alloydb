@@ -156,14 +156,19 @@ export SUPPLIER_AGENT_URL=http://localhost:8082
 
 ## Embedding Generation
 
-Uses Vertex AI to convert text to vectors:
+Uses Google Gen AI SDK to convert text to vectors:
 
 ```python
-from vertexai.language_models import TextEmbeddingModel
+from google import genai
+from google.genai.types import EmbedContentConfig
 
-model = TextEmbeddingModel.from_pretrained("text-embedding-005")
-embeddings = model.get_embeddings(["Industrial Widget"])
-vector = embeddings[0].values  # 768 dimensions
+client = genai.Client(vertexai=True, project="your-project", location="us-central1")
+response = client.models.embed_content(
+    model="text-embedding-005",
+    contents=["Industrial Widget"],
+    config=EmbedContentConfig(task_type="RETRIEVAL_QUERY", output_dimensionality=768)
+)
+vector = response.embeddings[0].values  # 768 dimensions
 ```
 
 ## ScaNN Index Configuration

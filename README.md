@@ -87,7 +87,7 @@ visual-commerce-gemini-3-alloydb/
 1. **Validates environment** - Checks gcloud, APIs, project settings
 2. **Configures AlloyDB** - Prompts for Public IP and authorized networks (Cloud Shell auto-detects, local machine prompts for security settings)
 3. **Provisions infrastructure** - Creates AlloyDB instance (~15 min if new)
-4. **Seeds database with real embeddings** - Populates inventory with sample data using Vertex AI text-embedding-005 (~30 seconds for semantic embeddings)
+4. **Seeds database with real embeddings** - Populates inventory with sample data using Google Gen AI SDK and text-embedding-005 (~10 seconds with parallel embedding generation)
 5. **Creates ScaNN index** - Builds high-performance vector search index
 
 ### `./run.sh`

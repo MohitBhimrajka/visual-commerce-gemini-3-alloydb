@@ -326,11 +326,11 @@ echo "📦 Step 2/5: Installing Python dependencies..."
 echo ""
 
 # Install database dependencies upfront
-echo "Installing database libraries (psycopg2-binary, pgvector)..."
+echo "Installing database libraries (psycopg2-binary, pgvector, google-genai)..."
 if command -v pip3 &> /dev/null; then
-    pip3 install -q psycopg2-binary pgvector python-dotenv 2>&1 | tail -1
+    pip3 install -q psycopg2-binary pgvector python-dotenv google-genai 2>&1 | tail -1
 else
-    pip install -q psycopg2-binary pgvector python-dotenv 2>&1 | tail -1
+    pip install -q psycopg2-binary pgvector python-dotenv google-genai 2>&1 | tail -1
 fi
 echo "✅ Python dependencies installed"
 echo ""
@@ -1035,16 +1035,18 @@ cd "$SCRIPT_DIR"
 # Setup Complete
 # ============================================================================
 echo ""
-echo "╔════════════════════════════════════════════════╗"
-echo "║  🎉 Setup Complete!                            ║"
-echo "╠════════════════════════════════════════════════╣"
-echo "║  Next steps:                                   ║"
-echo "║  1. Run 'sh run.sh' to start all services      ║"
-echo "║  2. Open http://localhost:8080                 ║"
-echo "║  3. Upload an image and watch the magic! ✨    ║"
-echo "║                                                ║"
-echo "║  Sample images available in assets/samples/    ║"
-echo "╚════════════════════════════════════════════════╝"
+echo "╔══════════════════════════════════════════════════════╗"
+echo "║                  Setup Complete!                     ║"
+echo "╠══════════════════════════════════════════════════════╣"
+echo "║  IMPORTANT: Complete the codelab steps FIRST!        ║"
+echo "║                                                      ║"
+echo "║  Then start the application:                         ║"
+echo "║  • Run 'sh run.sh' to start all services             ║"
+echo "║  • Open http://localhost:8080                        ║"
+echo "║  • Upload an image and watch the magic!              ║"
+echo "║                                                      ║"
+echo "║  Sample images: assets/samples/                      ║"
+echo "╚══════════════════════════════════════════════════════╝"
 echo ""
 if [ -f "$SCRIPT_DIR/.env" ]; then
     echo "💾 Configuration saved to .env file"

@@ -77,22 +77,36 @@ def get_embedding(text: str) -> list[float]:
     """
     Generate embedding for query text using Vertex AI text-embedding-005.
     """
-    import vertexai
-    from vertexai.language_models import TextEmbeddingModel
+    from google import genai
+    from google.genai.types import EmbedContentConfig
 
     project = os.environ.get("GOOGLE_CLOUD_PROJECT", "")
     logger.debug(f"get_embedding called with text: {text[:50]}...")
     logger.debug(f"Using GCP project: {project}")
     
     try:
-        vertexai.init(project=project, location="us-central1")
-        model = TextEmbeddingModel.from_pretrained("text-embedding-005")
-        embeddings = model.get_embeddings([text])
-        embedding_values = embeddings[0].values
+        # Initialize Gen AI client with Vertex AI
+        client = genai.Client(
+            vertexai=True,
+            project=project,
+            location="us-central1"
+        )
+        
+        # Generate embedding using text-embedding-005 (768 dimensions)
+        response = client.models.embed_content(
+            model="text-embedding-005",
+            contents=[text],
+            config=EmbedContentConfig(
+                task_type="RETRIEVAL_QUERY",  # For query embeddings
+                output_dimensionality=768
+            )
+        )
+        
+        embedding_values = response.embeddings[0].values
         logger.info(f"Generated embedding with {len(embedding_values)} dimensions")
         return embedding_values
     except Exception as e:
-        logger.error(f"Vertex AI embedding failed: {e}")
+        logger.error(f"Embedding API failed: {e}")
         raise
 
 
