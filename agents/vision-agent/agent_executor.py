@@ -4,6 +4,7 @@ Vision Agent Executor: Bridges A2A protocol to Gemini 3 Flash.
 import base64
 import json
 import logging
+import os
 import sys
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
