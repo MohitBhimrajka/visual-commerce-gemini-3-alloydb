@@ -242,48 +242,23 @@ function appState() {
             this.currentThought = '';
         },
 
-        // Progress simulation for 90s experience
+        // Progress simulation for ~20-30s code execution + spatial detection
         simulateProgress() {
             this.progressPercent = 0;
             this.currentSubstep = 'Initializing Gemini 3 Flash...';
 
-            const thinkingInterval = setInterval(() => {
-                if (this.progressPercent < 30) {
-                    this.progressPercent += 1;
+            const progressInterval = setInterval(() => {
+                if (this.progressPercent < 90) {
+                    this.progressPercent += 2;
                     if (this.progressPercent === 10) this.currentSubstep = 'Analyzing image composition...';
-                    if (this.progressPercent === 20) this.currentSubstep = 'Identifying object patterns...';
+                    if (this.progressPercent === 24) this.currentSubstep = 'Generating detection code...';
+                    if (this.progressPercent === 40) this.currentSubstep = 'Executing object detection...';
+                    if (this.progressPercent === 60) this.currentSubstep = 'Mapping bounding boxes...';
+                    if (this.progressPercent === 78) this.currentSubstep = 'Verifying count...';
+                } else {
+                    clearInterval(progressInterval);
                 }
-            }, 900);
-
-            // Phase 2: Code Generation (30-50%) - 18s
-            setTimeout(() => {
-                this.codeGenerating = true;
-                this.currentSubstep = 'Generating Python counting code...';
-                const codeInterval = setInterval(() => {
-                    if (this.progressPercent < 50) {
-                        this.progressPercent += 1;
-                    } else {
-                        clearInterval(codeInterval);
-                    }
-                }, 900);
-            }, 27000);
-
-            // Phase 3: Code Execution (50-90%) - 36s
-            setTimeout(() => {
-                this.codeGenerating = false;
-                this.codeExecuting = true;
-                this.currentSubstep = 'Executing detection algorithm...';
-                const execInterval = setInterval(() => {
-                    if (this.progressPercent < 90) {
-                        this.progressPercent += 1;
-                        if (this.progressPercent === 60) this.currentSubstep = 'Processing edge detection...';
-                        if (this.progressPercent === 75) this.currentSubstep = 'Counting detected objects...';
-                    } else {
-                        clearInterval(execInterval);
-                        clearInterval(thinkingInterval);
-                    }
-                }, 900);
-            }, 45000);
+            }, 500);
         },
 
         // Connect to discovered agent

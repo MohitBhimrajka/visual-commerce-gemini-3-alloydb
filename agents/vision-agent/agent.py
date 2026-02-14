@@ -1,6 +1,6 @@
 """
 Vision Agent: Core Gemini 3 Flash logic for image analysis.
-Extracted for reuse by main.py A2A server and standalone verification.
+Extracted for reuse by agent_executor.py (A2A server) and standalone verification.
 Production: Deploy main.py to Cloud Run with --port 8081.
 """
 import logging
@@ -27,30 +27,38 @@ client = genai.Client(
     api_key=os.environ.get("GEMINI_API_KEY")
 )
 
-
-COUNTING_SYSTEM_INSTRUCTION = """You are a precision inventory counting agent. Your job is to count physical objects in images with absolute accuracy.
+# System instruction for precision counting + spatial detection
+SYSTEM_INSTRUCTION = """You are a precision inventory counting and detection agent.
 
 Rules:
 1. Identify the PRIMARY object type in the image (boxes, bottles, cans, parts, etc.)
 2. Count ONLY distinct, individual physical items — do NOT double-count
 3. Partially visible items at edges count ONLY if more than 50% visible
-4. Write Python code to systematically label and count each item
-5. After counting, VERIFY by listing each item with a number (e.g., "Box 1: top-left shelf, Box 2: ...")
-6. Your final count MUST match your verified list exactly
-7. If uncertain, err on the side of the lower count — precision over recall"""
+4. Write Python code to help verify your count
+5. After counting, provide the 2D bounding box for EACH detected object as box_2d: [ymin, xmin, ymax, xmax] normalized to 0-1000
+6. Label each object with a short unique description (position, color, size)
+7. If uncertain, err on the lower count — precision over recall
+8. Your final count MUST match the number of bounding boxes you provide"""
+
+# Default query: generic, works for any object type (boxes, bottles, parts, etc.)
+DEFAULT_QUERY = (
+    "Analyze this image:\n"
+    "1. Identify the primary object type\n"
+    "2. Write and execute Python code to count all distinct objects precisely\n"
+    "3. For EACH detected object, provide its bounding box as box_2d: [ymin, xmin, ymax, xmax] normalized to 0-1000\n"
+    "4. Label each object with a short unique description\n\n"
+    "Your final count must match the number of bounding boxes."
+)
 
 
 def analyze_image(image_bytes: bytes, query: str = None, mime_type: str = "image/jpeg") -> dict:
     """
     Sends the image to Gemini 3 Flash for analysis.
-    With Code Execution enabled, the model writes Python (OpenCV) to count items.
+    With Code Execution enabled, the model writes Python code to count items
+    and provides bounding box coordinates for each detected object.
     """
     if query is None:
-        query = (
-            "Identify the primary objects in this image and count them precisely. "
-            "Write code to detect and count each individual item. "
-            "Label each detected item (e.g., Item 1, Item 2, ...) and verify your final count matches."
-        )
+        query = DEFAULT_QUERY
 
     image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
@@ -58,13 +66,15 @@ def analyze_image(image_bytes: bytes, query: str = None, mime_type: str = "image
         model="gemini-3-flash-preview",
         contents=[image_part, query],
         config=types.GenerateContentConfig(
-            system_instruction=[types.Part.from_text(text=COUNTING_SYSTEM_INSTRUCTION)],
+            system_instruction=[types.Part.from_text(text=SYSTEM_INSTRUCTION)],
             temperature=0,
-            thinking_config=types.ThinkingConfig(
-                thinking_level="HIGH",
-                include_thoughts=False
-            ),
-            tools=[types.Tool(code_execution=types.ToolCodeExecution)]
+            # CODELAB STEP 1: Uncomment to enable reasoning
+            # thinking_config=types.ThinkingConfig(
+            #    thinking_level="LOW",     # Valid: "MINIMAL", "LOW", "MEDIUM", "HIGH"
+            #    include_thoughts=False    # Set to True for debugging
+            #),
+            # CODELAB STEP 2: Uncomment to enable code execution
+            # tools=[types.Tool(code_execution=types.ToolCodeExecution)]
         ),
     )
 

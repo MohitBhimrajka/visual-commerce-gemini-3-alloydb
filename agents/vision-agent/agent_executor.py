@@ -1,12 +1,14 @@
 """
 Vision Agent Executor: Bridges A2A protocol to Gemini 3 Flash.
+
+Architecture (2 calls):
+  1. analyze_image() from agent.py — Gemini 3 Flash + code execution + LOW thinking → plain markdown
+  2. Gemini 2.5 Flash Lite — structured output → parses markdown into schema + search query (~1s)
 """
-import asyncio
 import base64
 import json
 import logging
 import os
-import sys
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
@@ -23,72 +25,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _detect_bounding_boxes(image_bytes: bytes) -> str:
-    """
-    Detect bounding boxes using Gemini 3 Flash spatial understanding.
-    Runs as a sync function (called via asyncio.to_thread for parallelism).
-    Returns JSON string of bounding boxes array.
-    """
-    try:
-        from google import genai
-        from google.genai import types
-
-        gemini_client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-
-        bbox_system_instructions = """
-            Return bounding boxes as a JSON array with labels. Never return masks or code fencing. Limit to 25 objects.
-            If an object is present multiple times, name them according to their unique characteristic (colors, size, position, unique characteristics, etc..).
-            Only detect distinct, individual physical items. Do not create duplicate boxes for the same item.
-        """
-
-        image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")
-
-        bbox_response = gemini_client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=[
-                "Detect the 2d bounding boxes of all distinct physical objects/items in this image. Label each with a short description. Do not double-count partially visible items.",
-                image_part,
-            ],
-            config=types.GenerateContentConfig(
-                system_instruction=[types.Part.from_text(text=bbox_system_instructions)],
-                temperature=0.5,
-                response_mime_type="application/json",
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-            )
-        )
-
-        # response_mime_type="application/json" guarantees valid JSON output
-        parsed_boxes = json.loads(bbox_response.text)
-        logger.info(f"Detected {len(parsed_boxes)} bounding boxes")
-        return json.dumps(parsed_boxes)
-
-    except Exception as e:
-        logger.warning(f"Bounding box detection failed: {e}")
-        return "[]"
-
-
 class VisionAgentExecutor(AgentExecutor):
     """A2A executor that delegates to Gemini 3 Flash for image analysis."""
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         logger.info("=" * 80)
         logger.info("VISION AGENT EXECUTOR - EXECUTE CALLED")
-        logger.info(f"Context type: {type(context)}")
         logger.info("=" * 80)
 
-        # Handle API change: try different attribute names for message
         message = getattr(context, 'message', None) or getattr(context, 'request_message', None)
-        logger.info(f"Message extracted: {message is not None}")
-
         parts = message.parts if message and hasattr(message, 'parts') else []
-        logger.info(f"Message has {len(parts)} part(s)")
 
         image_base64 = None
-        query = None  # Use agent.py default prompt (generic, works for any object type)
-
-        for i, p in enumerate(parts):
-            logger.info(f"Processing part {i+1}...")
-            # Try both p.text and p.root.text (API structure varies)
+        for p in parts:
             text = getattr(p, "text", None)
             if not text and hasattr(p, "root"):
                 text = getattr(p.root, "text", None)
@@ -96,119 +45,112 @@ class VisionAgentExecutor(AgentExecutor):
                 try:
                     data = json.loads(text)
                     image_base64 = data.get("image_base64")
-                    query = data.get("query", query)
                 except json.JSONDecodeError:
-                    query = text
+                    pass
 
         if not image_base64:
-            logger.error("No image_base64 found in message parts")
             await event_queue.enqueue_event(
-                new_agent_text_message(
-                    "Error: No image. Send JSON: {\"image_base64\": \"<base64>\", \"query\": \"...\"}"
-                )
+                new_agent_text_message("Error: No image. Send JSON: {\"image_base64\": \"<base64>\"}")
             )
             return
 
-        logger.info(f"Image base64 length: {len(image_base64)} chars")
-        logger.info(f"Query: {(query or 'default')[:100]}...")
-
         try:
-            logger.info("Decoding base64 image...")
             image_bytes = base64.b64decode(image_base64)
-            logger.info(f"Decoded image size: {len(image_bytes)} bytes")
+            logger.info(f"Decoded image: {len(image_bytes)} bytes")
         except Exception as e:
-            logger.error(f"Error decoding base64 image: {e}", exc_info=True)
             await event_queue.enqueue_event(new_agent_text_message(f"Error decoding image: {e}"))
             return
 
-        # Run analyze_image AND bounding box detection IN PARALLEL
-        # analyze_image: ~90-120s (Gemini 3 Flash with code execution)
-        # bounding boxes: ~20-25s (Gemini 3 Flash spatial understanding, thinking_budget=0)
-        # Total time = max(analyze, bbox) instead of analyze + bbox
-        logger.info("Starting parallel: analyze_image + bounding box detection...")
-
-        analyze_task = asyncio.to_thread(analyze_image, image_bytes, query)
-        bbox_task = asyncio.to_thread(_detect_bounding_boxes, image_bytes)
+        # ── CALL 1: analyze_image() from agent.py ──
+        # Gemini 3 Flash + code execution + LOW thinking → plain markdown.
+        # This is the function codelab participants edit (uncomment thinking + code execution).
+        logger.info("Call 1: analyze_image() — Gemini 3 Flash (code execution + LOW thinking)...")
 
         try:
-            result, bounding_boxes_json = await asyncio.gather(analyze_task, bbox_task)
-            logger.info("Both parallel tasks completed successfully")
-            logger.info(f"Result keys: {list(result.keys())}")
+            import asyncio
+            result = await asyncio.to_thread(analyze_image, image_bytes)
+            logger.info(f"Call 1 complete. Result keys: {list(result.keys())}")
+
+            # Build raw text from all result parts
+            answer = result.get("answer", "")
+            code_output = result.get("code_output", "")
+            raw_text = answer
+            if code_output:
+                raw_text = f"Code output: {code_output}\n\n{answer}"
+
+            logger.info(f"Raw text length: {len(raw_text)} chars")
+            if code_output:
+                logger.info(f"Code execution output: {code_output[:200]}")
+
         except Exception as e:
-            logger.error("=" * 80)
-            logger.error("PARALLEL EXECUTION ERROR")
-            logger.error(f"Error type: {type(e).__name__}")
-            logger.error(f"Error message: {str(e)}")
-            logger.error("Full traceback:", exc_info=True)
-            logger.error("=" * 80)
+            logger.error(f"analyze_image failed: {e}", exc_info=True)
             await event_queue.enqueue_event(new_agent_text_message(f"Error analyzing image: {e}"))
             return
 
-        # Build structured response for better downstream processing
-        answer = result.get("answer", "No analysis returned.")
-        code_output = result.get("code_output", "")
-
-        # Create a comprehensive response
-        if code_output:
-            full_response = f"Code output: {code_output}\n\n{answer}"
-        else:
-            full_response = answer
-
-        # Use Gemini 2.5 Flash Lite with structured outputs for semantic search query
-        # Fast (~200ms), cheap, dataset-agnostic. No code execution (structured outputs only).
-        logger.info("Generating semantic search query with Gemini 2.5 Flash Lite (structured output)...")
+        # ── CALL 2: Flash Lite — structure everything from raw markdown ──
+        # Fast (~1s), cheap. Parses the raw markdown into structured schema.
+        # Extracts: count, type, summary, confidence, search_query, AND bounding boxes.
+        logger.info("Call 2: Gemini 2.5 Flash Lite (structure raw output)...")
 
         try:
             from google import genai
             from google.genai import types
             from pydantic import BaseModel, Field
 
-            # Structured output schema - predictable, type-safe
-            class SearchQueryResult(BaseModel):
-                search_query: str = Field(
-                    description="3-5 word semantic search query for finding matching inventory items in supplier database. Focus on item type, material, category. Example: 'cardboard shipping boxes warehouse'"
-                )
-
             gemini_client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-            query_prompt = f"""Convert this vision analysis into a semantic search query for a supplier/inventory database.
+            class DetectedObject(BaseModel):
+                box_2d: list[int] = Field(description="Bounding box [ymin, xmin, ymax, xmax] normalized 0-1000")
+                label: str = Field(description="Short label for this object")
 
-Vision Analysis: {answer}
+            class StructuredVisionResult(BaseModel):
+                item_count: int = Field(description="Total number of primary objects detected")
+                item_type: str = Field(description="Type of primary objects, e.g. 'cardboard boxes'")
+                summary: str = Field(description="One crisp sentence: what was found and how many")
+                confidence: str = Field(description="high, medium, or low")
+                search_query: str = Field(description="3-5 word semantic search query for supplier database. Focus on item type, material, category.")
+                objects: list[DetectedObject] = Field(description="Bounding boxes extracted from the analysis. If none found, return empty array.")
 
-Create a 3-5 word query that would best match supplier catalog items.
-Focus on: item type, material, category, or use case. Ignore quantities.
-Works for any dataset - boxes, parts, equipment, etc."""
+            structure_prompt = f"""Parse this vision analysis output into structured data.
+Extract the item count, type, a one-sentence summary, confidence level, a 3-5 word supplier search query, and any bounding boxes (box_2d coordinates).
+The item_count must match the number of objects in the objects array.
 
-            response = gemini_client.models.generate_content(
-                model="gemini-2.5-flash-lite",  # Fast, cheap, structured output support
-                contents=query_prompt,
+Vision Analysis Output:
+{raw_text}"""
+
+            structure_response = gemini_client.models.generate_content(
+                model="gemini-2.5-flash-lite",
+                contents=structure_prompt,
                 config=types.GenerateContentConfig(
-                    temperature=0.3,
-                    max_output_tokens=50,
+                    temperature=0,
                     response_mime_type="application/json",
-                    response_json_schema=SearchQueryResult.model_json_schema(),
+                    response_json_schema=StructuredVisionResult.model_json_schema(),
                 )
             )
 
-            result = SearchQueryResult.model_validate_json(response.text)
-            search_query = result.search_query.strip()
-            logger.info(f"Generated search query: {search_query}")
+            structured = StructuredVisionResult.model_validate_json(structure_response.text)
+            logger.info(f"Structured: {structured.item_count} {structured.item_type}, {len(structured.objects)} bboxes, query='{structured.search_query}'")
 
-            # Include search query in response
-            search_hint = f"\n\nSearch terms: {search_query}"
-            full_response += search_hint
+            # Ensure count matches objects array
+            if structured.item_count != len(structured.objects) and len(structured.objects) > 0:
+                logger.warning(f"Count mismatch: item_count={structured.item_count}, objects={len(structured.objects)}. Using objects length.")
+                structured.item_count = len(structured.objects)
+
+            summary = structured.summary
+            search_query = structured.search_query
+            bounding_boxes = [obj.model_dump() for obj in structured.objects]
 
         except Exception as e:
-            logger.warning(f"Failed to generate search query with LLM: {e}")
-            # Fallback: use first 50 chars of answer (basic)
-            search_query = answer[:50].strip()
-            logger.info(f"Using fallback search query: {search_query}")
+            logger.warning(f"Flash Lite structuring failed: {e}")
+            summary = raw_text[:200].strip()
+            search_query = raw_text[:50].strip()
+            bounding_boxes = []
 
-        # Append bounding boxes as a tagged section in the response
-        full_response += f"\n\n[BOUNDING_BOXES]{bounding_boxes_json}[/BOUNDING_BOXES]"
+        # ── Build response (compatible with frontend app.py parsing) ──
+        full_response = f"{summary}\n\nSearch terms: {search_query}"
+        full_response += f"\n\n[BOUNDING_BOXES]{json.dumps(bounding_boxes)}[/BOUNDING_BOXES]"
 
         logger.info("Vision analysis complete")
-
         await event_queue.enqueue_event(new_agent_text_message(full_response))
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:

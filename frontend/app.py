@@ -314,7 +314,6 @@ async def run_workflow_with_events(image_bytes: bytes):
             
             payload = json.dumps({
                 "image_base64": base64.b64encode(compressed_bytes).decode("utf-8"),
-                "query": "Write code to count the exact number of boxes on this shelf.",
             })
             
             request = SendMessageRequest(
@@ -336,17 +335,15 @@ async def run_workflow_with_events(image_bytes: bytes):
                 "timestamp": asyncio.get_event_loop().time()
             })
 
-            # Schedule additional progress events to keep the UI alive during the ~90s call
+            # Schedule progress events during the ~20-30s code execution call
             async def emit_progress_updates():
                 """Emit progress updates while waiting for vision agent response."""
                 updates = [
-                    (8, "thinking", "Reasoning about object boundaries and spatial layout..."),
-                    (10, "thinking", "Identifying inventory items and shelf structure..."),
-                    (10, "code_generating", "Generating Python counting code with OpenCV..."),
-                    (12, "code_generating", "Building contour detection pipeline..."),
-                    (12, "code_executing", "Running detection algorithm in sandbox..."),
-                    (13, "code_executing", "Processing edge detection results..."),
-                    (13, "code_executing", "Counting detected objects and validating..."),
+                    (3, "thinking", "Gemini 3 Flash analyzing image composition..."),
+                    (5, "code_generating", "Generating Python detection code..."),
+                    (6, "code_executing", "Running object detection in sandbox..."),
+                    (5, "code_executing", "Mapping bounding box coordinates..."),
+                    (5, "thinking", "Verifying count and spatial data..."),
                 ]
                 for wait_seconds, substep, msg in updates:
                     await asyncio.sleep(wait_seconds)
