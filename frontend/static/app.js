@@ -34,6 +34,12 @@ function appState() {
         orderResult: null,
         pendingOrder: null,  // Buffered order_placed event until user proceeds
 
+        // Demo mode — pauses at each stage for presenter control
+        demoMode: true,
+        demoWaiting: false,
+        demoNextAction: null,
+        pendingSupplierResult: null,
+
         // Fake thoughts engine
         currentThought: '',
         thoughtInterval: null,
@@ -283,7 +289,32 @@ function appState() {
             this.showAgentDiscovery = false;
         },
 
-        // User clicks "Proceed to Order" after reviewing supplier match
+        // Demo mode: pause at a gate point, or execute immediately if demo off
+        demoPause(action) {
+            if (this.demoMode) {
+                this.demoWaiting = true;
+                this.demoNextAction = action;
+            } else {
+                action();
+            }
+        },
+
+        // Demo mode: user clicks Continue
+        demoContinue() {
+            if (this.demoNextAction) {
+                const action = this.demoNextAction;
+                this.demoWaiting = false;
+                this.demoNextAction = null;
+                action();
+            }
+        },
+
+        // Toggle demo mode on/off
+        toggleDemoMode() {
+            this.demoMode = !this.demoMode;
+        },
+
+        // User clicks "Continue" after reviewing supplier match (Gate 5)
         proceedToOrder() {
             this.step = 3;
             this.orchestratorText = "Supplier Agent → Order System (Placing Order)";
@@ -507,12 +538,12 @@ function appState() {
                     // Add has-results class to body for sticky header spacing
                     document.body.classList.add('has-results');
 
-                    // Auto-advance to memory stage
-                    setTimeout(() => {
+                    // Gate 2: Pause to let presenter show bounding boxes + result
+                    this.demoPause(() => {
                         this.step = 2;
                         this.startFakeThoughts('memory');
                         this.orchestratorText = "Vision Agent → Supplier Agent (A2A Discovery)";
-                    }, 2500);
+                    });
                     break;
 
                 case 'vision_error':
@@ -531,14 +562,21 @@ function appState() {
                     this.stopFakeThoughts();
                     this.playPing();
 
-                    this.supplierResult = {
+                    // Buffer supplier result for Gate 4
+                    this.pendingSupplierResult = {
                         part: data.part,
                         supplier: data.supplier,
                         confidence: data.confidence
                     };
 
-                    this.orchestratorText = "Supplier Match Found — Review & Proceed";
-                    // Don't auto-advance — user clicks "Proceed to Order" button
+                    this.orchestratorText = "Supplier Match Found";
+
+                    // Gate 4: Pause on vector search animation before revealing result
+                    this.demoPause(() => {
+                        this.supplierResult = this.pendingSupplierResult;
+                        this.pendingSupplierResult = null;
+                        this.orchestratorText = "Supplier Match Found — Review & Proceed";
+                    });
                     break;
 
                 case 'memory_error':
@@ -620,6 +658,9 @@ function appState() {
             this.showAgentDiscovery = false;
             this.discoveredAgent = null;
             this.discoveryAgentType = null;
+            this.demoWaiting = false;
+            this.demoNextAction = null;
+            this.pendingSupplierResult = null;
 
             document.body.classList.remove('has-results');
         },

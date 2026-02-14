@@ -46,6 +46,9 @@
          FIXED CONTROLS (top right)
          ═══════════════════════════════════════════ -->
     <div class="fixed-controls no-print">
+        <button @click="toggleDemoMode()" class="demo-toggle" :class="{'active': demoMode}" :title="demoMode ? 'Demo Mode: ON (pauses at each stage)' : 'Demo Mode: OFF (auto-advances)'">
+            <span x-text="demoMode ? 'DEMO' : 'AUTO'"></span>
+        </button>
         <button @click="toggleAudio()" class="mute-toggle" :title="audioEnabled ? 'Mute' : 'Unmute'">
             <span x-show="audioEnabled">&#x1f50a;</span>
             <span x-show="!audioEnabled">&#x1f507;</span>
@@ -328,7 +331,7 @@
                         </div>
                         <div class="text-center" style="margin-top: var(--space-5);" x-show="step === 2">
                             <button @click="proceedToOrder()" class="btn btn-primary btn-lg">
-                                Proceed to Order
+                                Continue
                             </button>
                         </div>
                     </div>
@@ -374,6 +377,14 @@
                     </div>
                 </div>
             </section>
+
+            <!-- Demo Mode: Floating Continue Button -->
+            <div class="demo-continue-overlay" x-show="demoWaiting" x-transition>
+                <button @click="demoContinue()" class="btn btn-primary btn-lg demo-continue-btn">
+                    Continue
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                </button>
+            </div>
 
         </div> <!-- /main-glass-card -->
 

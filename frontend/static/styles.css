@@ -1893,6 +1893,60 @@ body.has-results .fixed-controls {
 }
 
 /* ==========================================
+   DEMO MODE
+   ========================================== */
+
+/* Floating Continue button overlay — anchored to bottom of main card */
+.demo-continue-overlay {
+  position: absolute;
+  bottom: var(--space-6);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  animation: demoContinuePulse 2s ease-in-out infinite;
+}
+
+.demo-continue-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-shadow: var(--shadow-glow-blue), var(--shadow-lg);
+  padding: var(--space-4) var(--space-8) !important;
+  font-size: 1rem !important;
+}
+
+@keyframes demoContinuePulse {
+  0%, 100% { box-shadow: var(--shadow-glow-blue), var(--shadow-lg); }
+  50% { box-shadow: 0 0 60px rgba(59,130,246,0.3), var(--shadow-lg); }
+}
+
+/* Demo toggle button in fixed controls */
+.demo-toggle {
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-40);
+  cursor: pointer;
+  transition: all var(--duration) var(--ease-out);
+  line-height: 1.4;
+}
+
+.demo-toggle.active {
+  background: var(--blue-dim);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: var(--blue);
+}
+
+.demo-toggle:hover {
+  border-color: var(--glass-border-hover);
+}
+
+/* ==========================================
    ANIMATIONS
    ========================================== */
 @keyframes scanLine {
