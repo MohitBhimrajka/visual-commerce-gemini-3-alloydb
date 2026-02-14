@@ -38,6 +38,7 @@ def _detect_bounding_boxes(image_bytes: bytes) -> str:
         bbox_system_instructions = """
             Return bounding boxes as a JSON array with labels. Never return masks or code fencing. Limit to 25 objects.
             If an object is present multiple times, name them according to their unique characteristic (colors, size, position, unique characteristics, etc..).
+            Only detect distinct, individual physical items. Do not create duplicate boxes for the same item.
         """
 
         image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")
@@ -45,11 +46,11 @@ def _detect_bounding_boxes(image_bytes: bytes) -> str:
         bbox_response = gemini_client.models.generate_content(
             model="gemini-3-flash-preview",
             contents=[
-                "Detect the 2d bounding boxes of all the items/boxes/objects on the shelf or in the image. Label each with a short description.",
+                "Detect the 2d bounding boxes of all distinct physical objects/items in this image. Label each with a short description. Do not double-count partially visible items.",
                 image_part,
             ],
             config=types.GenerateContentConfig(
-                system_instruction=bbox_system_instructions,
+                system_instruction=[types.Part.from_text(text=bbox_system_instructions)],
                 temperature=0.5,
                 response_mime_type="application/json",
                 thinking_config=types.ThinkingConfig(thinking_budget=0),
@@ -83,7 +84,7 @@ class VisionAgentExecutor(AgentExecutor):
         logger.info(f"Message has {len(parts)} part(s)")
 
         image_base64 = None
-        query = "Write code to count the exact number of boxes on this shelf."
+        query = None  # Use agent.py default prompt (generic, works for any object type)
 
         for i, p in enumerate(parts):
             logger.info(f"Processing part {i+1}...")
@@ -109,7 +110,7 @@ class VisionAgentExecutor(AgentExecutor):
             return
 
         logger.info(f"Image base64 length: {len(image_base64)} chars")
-        logger.info(f"Query: {query[:100]}...")
+        logger.info(f"Query: {(query or 'default')[:100]}...")
 
         try:
             logger.info("Decoding base64 image...")

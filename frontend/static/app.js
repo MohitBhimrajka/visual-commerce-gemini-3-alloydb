@@ -37,8 +37,10 @@ function appState() {
         // Demo mode — pauses at each stage for presenter control
         demoMode: true,
         demoWaiting: false,
-        demoNextAction: null,
+        demoQueue: [],          // Queue of gated actions (FIFO)
         pendingSupplierResult: null,
+        pendingDiscovery: null,  // Buffered discovery events that arrive too early
+        pendingMemoryStart: false,
 
         // Fake thoughts engine
         currentThought: '',
@@ -292,20 +294,20 @@ function appState() {
         // Demo mode: pause at a gate point, or execute immediately if demo off
         demoPause(action) {
             if (this.demoMode) {
+                this.demoQueue.push(action);
                 this.demoWaiting = true;
-                this.demoNextAction = action;
             } else {
                 action();
             }
         },
 
-        // Demo mode: user clicks Continue
+        // Demo mode: user clicks Continue — executes next queued gate
         demoContinue() {
-            if (this.demoNextAction) {
-                const action = this.demoNextAction;
-                this.demoWaiting = false;
-                this.demoNextAction = null;
+            if (this.demoQueue.length > 0) {
+                const action = this.demoQueue.shift();
                 action();
+                // Still waiting if more gates queued
+                this.demoWaiting = this.demoQueue.length > 0;
             }
         },
 
@@ -430,43 +432,62 @@ function appState() {
                 case 'discovery_start':
                     if (data.agent === 'vision') {
                         this.orchestratorText = "Discovering Vision Agent via A2A...";
-                        // Show A2A discovery modal for vision agent too
                         this.showAgentDiscovery = true;
                         this.discoveredAgent = null;
                         this.discoveryAgentType = 'vision';
                     } else if (data.agent === 'supplier') {
-                        this.orchestratorText = "Discovering Supplier Agent via A2A...";
-                        this.showAgentDiscovery = true;
-                        this.discoveredAgent = null;
-                        this.discoveryAgentType = 'supplier';
+                        // Buffer supplier discovery if we're still paused at vision gate
+                        if (this.step < 2) {
+                            this.pendingDiscovery = this.pendingDiscovery || {};
+                            this.pendingDiscovery.started = true;
+                        } else {
+                            this.orchestratorText = "Discovering Supplier Agent via A2A...";
+                            this.showAgentDiscovery = true;
+                            this.discoveredAgent = null;
+                            this.discoveryAgentType = 'supplier';
+                        }
                     }
                     break;
 
                 case 'discovery_complete':
                     if (data.agent === 'vision') {
                         this.orchestratorText = "Vision Agent → Gemini 3 Flash (Analyzing)";
+                        // Populate modal with REAL agent card data from backend
+                        this.discoveredAgent = {
+                            name: data.agent,
+                            displayName: data.agent_name || 'Vision Agent',
+                            description: data.agent_description || '',
+                            endpoint: data.agent_url || '',
+                            version: data.agent_version || '1.0.0',
+                            skills: data.agent_skills || [],
+                            inputModes: data.agent_input_modes || [],
+                            outputModes: data.agent_output_modes || [],
+                            protocolVersion: data.agent_protocol_version || '',
+                            transport: data.agent_transport || '',
+                            streaming: data.agent_streaming ?? false,
+                        };
+                    } else if (data.agent === 'supplier') {
+                        // Buffer supplier discovery if we're still paused at vision gate
+                        if (this.step < 2) {
+                            this.pendingDiscovery = this.pendingDiscovery || {};
+                            this.pendingDiscovery.agentData = data;
+                        } else {
+                            this.discoveredAgent = {
+                                name: data.agent,
+                                displayName: data.agent_name || 'Supplier Agent',
+                                description: data.agent_description || '',
+                                endpoint: data.agent_url || '',
+                                version: data.agent_version || '1.0.0',
+                                skills: data.agent_skills || [],
+                                inputModes: data.agent_input_modes || [],
+                                outputModes: data.agent_output_modes || [],
+                                protocolVersion: data.agent_protocol_version || '',
+                                transport: data.agent_transport || '',
+                                streaming: data.agent_streaming ?? false,
+                            };
+                            this.playPing();
+                        }
                     }
-
-                    // Populate modal with REAL agent card data from backend
-                    this.discoveredAgent = {
-                        name: data.agent,
-                        displayName: data.agent_name || (data.agent === 'vision' ? 'Vision Agent' : 'Supplier Agent'),
-                        description: data.agent_description || '',
-                        endpoint: data.agent_url || '',
-                        version: data.agent_version || '1.0.0',
-                        skills: data.agent_skills || [],
-                        inputModes: data.agent_input_modes || [],
-                        outputModes: data.agent_output_modes || [],
-                        protocolVersion: data.agent_protocol_version || '',
-                        transport: data.agent_transport || '',
-                        streaming: data.agent_streaming ?? false,
-                    };
-
-                    // Only play ping for supplier discovery (vision has the hum coming)
-                    if (data.agent === 'supplier') {
-                        this.playPing();
-                    }
-
                     // Modal stays open until user clicks "Continue"
                     break;
 
@@ -543,6 +564,39 @@ function appState() {
                         this.step = 2;
                         this.startFakeThoughts('memory');
                         this.orchestratorText = "Vision Agent → Supplier Agent (A2A Discovery)";
+
+                        // Replay buffered supplier discovery if it arrived while paused
+                        if (this.pendingDiscovery) {
+                            const pd = this.pendingDiscovery;
+                            this.pendingDiscovery = null;
+                            // Show supplier discovery modal with buffered data
+                            this.orchestratorText = "Discovering Supplier Agent via A2A...";
+                            this.showAgentDiscovery = true;
+                            this.discoveryAgentType = 'supplier';
+                            if (pd.agentData) {
+                                const d = pd.agentData;
+                                this.discoveredAgent = {
+                                    name: d.agent,
+                                    displayName: d.agent_name || 'Supplier Agent',
+                                    description: d.agent_description || '',
+                                    endpoint: d.agent_url || '',
+                                    version: d.agent_version || '1.0.0',
+                                    skills: d.agent_skills || [],
+                                    inputModes: d.agent_input_modes || [],
+                                    outputModes: d.agent_output_modes || [],
+                                    protocolVersion: d.agent_protocol_version || '',
+                                    transport: d.agent_transport || '',
+                                    streaming: d.agent_streaming ?? false,
+                                };
+                                this.playPing();
+                            }
+                        }
+
+                        // Replay buffered memory_start
+                        if (this.pendingMemoryStart) {
+                            this.pendingMemoryStart = false;
+                            this.orchestratorText = "Supplier Agent → AlloyDB ScaNN (Searching)";
+                        }
                     });
                     break;
 
@@ -555,12 +609,20 @@ function appState() {
                     break;
 
                 case 'memory_start':
-                    this.orchestratorText = "Supplier Agent → AlloyDB ScaNN (Searching)";
+                    // Only update UI if we're actually at the supplier step
+                    if (this.step >= 2) {
+                        this.orchestratorText = "Supplier Agent → AlloyDB ScaNN (Searching)";
+                    } else {
+                        this.pendingMemoryStart = true;
+                    }
                     break;
 
                 case 'memory_complete':
-                    this.stopFakeThoughts();
-                    this.playPing();
+                    // Only stop thoughts/ping if we're at the right step
+                    if (this.step >= 2) {
+                        this.stopFakeThoughts();
+                        this.playPing();
+                    }
 
                     // Buffer supplier result for Gate 4
                     this.pendingSupplierResult = {
@@ -569,10 +631,15 @@ function appState() {
                         confidence: data.confidence
                     };
 
-                    this.orchestratorText = "Supplier Match Found";
+                    // Only update orchestrator if we're at supplier step
+                    if (this.step >= 2) {
+                        this.orchestratorText = "Supplier Match Found";
+                    }
 
                     // Gate 4: Pause on vector search animation before revealing result
                     this.demoPause(() => {
+                        // If thoughts are still running (came from Gate 2), stop them now
+                        this.stopFakeThoughts();
                         this.supplierResult = this.pendingSupplierResult;
                         this.pendingSupplierResult = null;
                         this.orchestratorText = "Supplier Match Found — Review & Proceed";
@@ -659,8 +726,10 @@ function appState() {
             this.discoveredAgent = null;
             this.discoveryAgentType = null;
             this.demoWaiting = false;
-            this.demoNextAction = null;
+            this.demoQueue = [];
             this.pendingSupplierResult = null;
+            this.pendingDiscovery = null;
+            this.pendingMemoryStart = false;
 
             document.body.classList.remove('has-results');
         },

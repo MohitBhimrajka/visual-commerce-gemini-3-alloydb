@@ -28,24 +28,42 @@ client = genai.Client(
 )
 
 
-def analyze_image(image_bytes: bytes, query: str = "Write code to count the exact number of boxes on this shelf.", mime_type: str = "image/jpeg") -> dict:
+COUNTING_SYSTEM_INSTRUCTION = """You are a precision inventory counting agent. Your job is to count physical objects in images with absolute accuracy.
+
+Rules:
+1. Identify the PRIMARY object type in the image (boxes, bottles, cans, parts, etc.)
+2. Count ONLY distinct, individual physical items — do NOT double-count
+3. Partially visible items at edges count ONLY if more than 50% visible
+4. Write Python code to systematically label and count each item
+5. After counting, VERIFY by listing each item with a number (e.g., "Box 1: top-left shelf, Box 2: ...")
+6. Your final count MUST match your verified list exactly
+7. If uncertain, err on the side of the lower count — precision over recall"""
+
+
+def analyze_image(image_bytes: bytes, query: str = None, mime_type: str = "image/jpeg") -> dict:
     """
     Sends the image to Gemini 3 Flash for analysis.
     With Code Execution enabled, the model writes Python (OpenCV) to count items.
     """
+    if query is None:
+        query = (
+            "Identify the primary objects in this image and count them precisely. "
+            "Write code to detect and count each individual item. "
+            "Label each detected item (e.g., Item 1, Item 2, ...) and verify your final count matches."
+        )
+
     image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
     response = client.models.generate_content(
         model="gemini-3-flash-preview",
         contents=[image_part, query],
         config=types.GenerateContentConfig(
+            system_instruction=[types.Part.from_text(text=COUNTING_SYSTEM_INSTRUCTION)],
             temperature=0,
-            # CODELAB STEP 1: Uncomment to enable reasoning
             thinking_config=types.ThinkingConfig(
-                thinking_level="MEDIUM",  # Valid: "MINIMAL", "LOW", "MEDIUM", "HIGH"
-                include_thoughts=False    # Set to True for debugging
+                thinking_level="HIGH",
+                include_thoughts=False
             ),
-            # CODELAB STEP 2: Uncomment to enable code execution
             tools=[types.Tool(code_execution=types.ToolCodeExecution)]
         ),
     )

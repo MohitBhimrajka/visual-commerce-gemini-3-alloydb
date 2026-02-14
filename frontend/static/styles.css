@@ -170,7 +170,6 @@ body::after {
   box-shadow: var(--shadow-lg);
   transition: box-shadow var(--duration-slow) var(--ease-out);
   position: relative;
-  overflow: hidden;
 }
 
 /* Subtle top-edge highlight */
@@ -232,7 +231,7 @@ body.has-results .right-panels-container {
 header {
   grid-column: 1 / -1;
   text-align: center;
-  padding: var(--space-4) 0 var(--space-3);
+  padding: var(--space-8) 0 var(--space-6);
   position: relative;
   z-index: 10;
   transition: opacity 300ms var(--ease-out), transform 300ms var(--ease-out);
@@ -1896,28 +1895,27 @@ body.has-results .fixed-controls {
    DEMO MODE
    ========================================== */
 
-/* Floating Continue button overlay — anchored to bottom of main card */
+/* Demo Continue button — normal flow, centered below active content */
 .demo-continue-overlay {
-  position: absolute;
-  bottom: var(--space-6);
-  left: 50%;
-  transform: translateX(-50%);
+  text-align: center;
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--glass-border);
   z-index: 20;
-  animation: demoContinuePulse 2s ease-in-out infinite;
+  animation: fadeIn var(--duration-slow) var(--ease-out);
 }
 
 .demo-continue-btn {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  box-shadow: var(--shadow-glow-blue), var(--shadow-lg);
-  padding: var(--space-4) var(--space-8) !important;
-  font-size: 1rem !important;
+  box-shadow: var(--shadow-glow-blue), var(--shadow-md);
+  animation: demoContinuePulse 2s ease-in-out infinite;
 }
 
 @keyframes demoContinuePulse {
-  0%, 100% { box-shadow: var(--shadow-glow-blue), var(--shadow-lg); }
-  50% { box-shadow: 0 0 60px rgba(59,130,246,0.3), var(--shadow-lg); }
+  0%, 100% { box-shadow: var(--shadow-glow-blue), var(--shadow-md); }
+  50% { box-shadow: 0 0 60px rgba(59,130,246,0.3), var(--shadow-md); }
 }
 
 /* Demo toggle button in fixed controls */
