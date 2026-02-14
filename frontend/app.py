@@ -263,10 +263,36 @@ async def run_workflow_with_events(image_bytes: bytes):
             vision_card = await resolver.get_agent_card()
             vision_client = A2AClient(httpx_client=client, agent_card=vision_card)
             
+            # Extract real agent card data for the frontend
+            vision_skills = []
+            if hasattr(vision_card, 'skills') and vision_card.skills:
+                for s in vision_card.skills:
+                    vision_skills.append({
+                        "id": getattr(s, 'id', ''),
+                        "name": getattr(s, 'name', ''),
+                        "description": getattr(s, 'description', ''),
+                        "tags": getattr(s, 'tags', []),
+                        "examples": getattr(s, 'examples', []),
+                    })
+
+            # Extract capabilities
+            vision_caps = getattr(vision_card, 'capabilities', None)
+            vision_streaming = getattr(vision_caps, 'streaming', False) if vision_caps else False
+
             await manager.broadcast({
                 "type": "discovery_complete",
                 "agent": "vision",
                 "message": f"Vision Agent discovered: {vision_card.name}",
+                "agent_name": vision_card.name,
+                "agent_description": getattr(vision_card, 'description', ''),
+                "agent_url": VISION_URL,
+                "agent_version": getattr(vision_card, 'version', '1.0.0'),
+                "agent_skills": vision_skills,
+                "agent_input_modes": getattr(vision_card, 'default_input_modes', []),
+                "agent_output_modes": getattr(vision_card, 'default_output_modes', []),
+                "agent_protocol_version": getattr(vision_card, 'protocol_version', ''),
+                "agent_transport": getattr(vision_card, 'preferred_transport', ''),
+                "agent_streaming": vision_streaming,
                 "timestamp": asyncio.get_event_loop().time()
             })
             
@@ -302,15 +328,41 @@ async def run_workflow_with_events(image_bytes: bytes):
                 ),
             )
             
-            # Broadcast initial thinking progress
+            # Broadcast granular progress events during the long vision analysis
             await manager.broadcast({
                 "type": "vision_progress",
                 "substep": "thinking",
-                "message": "Gemini 3 analyzing image composition...",
+                "message": "Gemini 3 Flash analyzing image composition...",
                 "timestamp": asyncio.get_event_loop().time()
             })
-            
+
+            # Schedule additional progress events to keep the UI alive during the ~90s call
+            async def emit_progress_updates():
+                """Emit progress updates while waiting for vision agent response."""
+                updates = [
+                    (8, "thinking", "Reasoning about object boundaries and spatial layout..."),
+                    (10, "thinking", "Identifying inventory items and shelf structure..."),
+                    (10, "code_generating", "Generating Python counting code with OpenCV..."),
+                    (12, "code_generating", "Building contour detection pipeline..."),
+                    (12, "code_executing", "Running detection algorithm in sandbox..."),
+                    (13, "code_executing", "Processing edge detection results..."),
+                    (13, "code_executing", "Counting detected objects and validating..."),
+                ]
+                for wait_seconds, substep, msg in updates:
+                    await asyncio.sleep(wait_seconds)
+                    await manager.broadcast({
+                        "type": "vision_progress",
+                        "substep": substep,
+                        "message": msg,
+                        "timestamp": asyncio.get_event_loop().time()
+                    })
+
+            progress_task = asyncio.create_task(emit_progress_updates())
+
             response = await vision_client.send_message(request)
+
+            # Cancel progress updates once we have the response
+            progress_task.cancel()
             vision_text = extract_text_from_response(response)
             
             # Check if code was generated and executed
@@ -420,10 +472,36 @@ async def run_workflow_with_events(image_bytes: bytes):
             supplier_card = await supplier_resolver.get_agent_card()
             supplier_client = A2AClient(httpx_client=client, agent_card=supplier_card)
             
+            # Extract real supplier agent card data for the frontend
+            supplier_skills = []
+            if hasattr(supplier_card, 'skills') and supplier_card.skills:
+                for s in supplier_card.skills:
+                    supplier_skills.append({
+                        "id": getattr(s, 'id', ''),
+                        "name": getattr(s, 'name', ''),
+                        "description": getattr(s, 'description', ''),
+                        "tags": getattr(s, 'tags', []),
+                        "examples": getattr(s, 'examples', []),
+                    })
+
+            # Extract capabilities
+            supplier_caps = getattr(supplier_card, 'capabilities', None)
+            supplier_streaming = getattr(supplier_caps, 'streaming', False) if supplier_caps else False
+
             await manager.broadcast({
                 "type": "discovery_complete",
                 "agent": "supplier",
                 "message": f"Supplier Agent discovered: {supplier_card.name}",
+                "agent_name": supplier_card.name,
+                "agent_description": getattr(supplier_card, 'description', ''),
+                "agent_url": SUPPLIER_URL,
+                "agent_version": getattr(supplier_card, 'version', '1.0.0'),
+                "agent_skills": supplier_skills,
+                "agent_input_modes": getattr(supplier_card, 'default_input_modes', []),
+                "agent_output_modes": getattr(supplier_card, 'default_output_modes', []),
+                "agent_protocol_version": getattr(supplier_card, 'protocol_version', ''),
+                "agent_transport": getattr(supplier_card, 'preferred_transport', ''),
+                "agent_streaming": supplier_streaming,
                 "timestamp": asyncio.get_event_loop().time()
             })
             

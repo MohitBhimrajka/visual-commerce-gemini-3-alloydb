@@ -8,32 +8,32 @@ function appState() {
         // WebSocket connection
         ws: null,
         wsConnected: false,
-        
-        // Step wizard (0=Upload, 1=Vision, 2=Memory, 3=Order)
+
+        // Step wizard (0=Upload, 1=Vision, 2=Memory, 3=Order, 4=Complete)
         step: 0,
         isProcessing: false,
-        
+
         // Upload state
         uploadedImage: null,
         uploadedFile: null,
         isDragging: false,
-        
+
         // Sample images
         sampleImages: [],
-        
+
         // Vision result (structured from backend)
         visionResult: null,
-        
+
         // Supplier result
         supplierResult: null,
-        
+
         // Order result
         orderResult: null,
-        
+
         // Fake thoughts engine
         currentThought: '',
         thoughtInterval: null,
-        
+
         // Progress tracking for 90s experience
         progressPercent: 0,
         progressMessage: '',
@@ -44,13 +44,14 @@ function appState() {
         generatedCode: '',
         executionOutput: '',
         liveLogStream: [],
-        
+
         // A2A Agent Discovery
         showAgentDiscovery: false,
         discoveredAgent: null,
+        discoveryAgentType: null,  // 'vision' or 'supplier'
         showCode: false,
         showOutput: false,
-        
+
         visionThoughts: [
             "Initializing Gemini 3 Flash vision pipeline...",
             "Loading OpenCV contour detection kernels...",
@@ -70,27 +71,27 @@ function appState() {
             "Retrieving top supplier metadata and pricing..."
         ],
         thoughtIndex: 0,
-        
+
         // Audio
         audioEnabled: true,
         audioCtx: null,
         humOscillator: null,
         humGain: null,
-        
+
         // Orchestrator bar text
         orchestratorText: "System Ready",
-        
+
         // Logs drawer
         showLogs: false,
         rawLogs: [],
-        
+
         // Initialize on component mount
         async init() {
             this.connectWebSocket();
             await this.loadSampleImages();
             this.initAudio();
         },
-        
+
         // Web Audio API initialization
         initAudio() {
             try {
@@ -100,7 +101,7 @@ function appState() {
                 this.audioEnabled = false;
             }
         },
-        
+
         // Toggle audio
         toggleAudio() {
             this.audioEnabled = !this.audioEnabled;
@@ -108,31 +109,30 @@ function appState() {
                 this.stopHum();
             }
         },
-        
+
         // Play scanning hum (looping)
         playHum() {
             if (!this.audioEnabled || !this.audioCtx) return;
-            
+
             try {
-                // Create oscillators for layered hum
                 this.humOscillator = this.audioCtx.createOscillator();
                 this.humGain = this.audioCtx.createGain();
-                
+
                 this.humOscillator.type = 'sine';
                 this.humOscillator.frequency.setValueAtTime(100, this.audioCtx.currentTime);
-                
+
                 this.humGain.gain.setValueAtTime(0, this.audioCtx.currentTime);
                 this.humGain.gain.linearRampToValueAtTime(0.1, this.audioCtx.currentTime + 0.5);
-                
+
                 this.humOscillator.connect(this.humGain);
                 this.humGain.connect(this.audioCtx.destination);
-                
+
                 this.humOscillator.start();
             } catch (e) {
                 console.warn('Failed to play hum:', e);
             }
         },
-        
+
         // Stop scanning hum
         stopHum() {
             if (this.humOscillator && this.humGain) {
@@ -150,95 +150,99 @@ function appState() {
                 }
             }
         },
-        
+
         // Play sonar ping
         playPing() {
             if (!this.audioEnabled || !this.audioCtx) return;
-            
+
             try {
                 const oscillator = this.audioCtx.createOscillator();
                 const gainNode = this.audioCtx.createGain();
-                
+
                 oscillator.type = 'sine';
                 oscillator.frequency.setValueAtTime(880, this.audioCtx.currentTime);
-                
+
                 gainNode.gain.setValueAtTime(0.3, this.audioCtx.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + 0.3);
-                
+
                 oscillator.connect(gainNode);
                 gainNode.connect(this.audioCtx.destination);
-                
+
                 oscillator.start();
                 oscillator.stop(this.audioCtx.currentTime + 0.3);
             } catch (e) {
                 console.warn('Failed to play ping:', e);
             }
         },
-        
+
         // Play success chime
         playSuccess() {
             if (!this.audioEnabled || !this.audioCtx) return;
-            
+
             try {
-                // Two-tone ascending chime (C5 then E5)
                 const playTone = (freq, delay) => {
                     const oscillator = this.audioCtx.createOscillator();
                     const gainNode = this.audioCtx.createGain();
-                    
+
                     oscillator.type = 'sine';
                     oscillator.frequency.setValueAtTime(freq, this.audioCtx.currentTime + delay);
-                    
+
                     gainNode.gain.setValueAtTime(0.2, this.audioCtx.currentTime + delay);
                     gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + delay + 0.15);
-                    
+
                     oscillator.connect(gainNode);
                     gainNode.connect(this.audioCtx.destination);
-                    
+
                     oscillator.start(this.audioCtx.currentTime + delay);
                     oscillator.stop(this.audioCtx.currentTime + delay + 0.15);
                 };
-                
+
                 playTone(523.25, 0);      // C5
                 playTone(659.25, 0.15);   // E5
             } catch (e) {
                 console.warn('Failed to play success:', e);
             }
         },
-        
-        // Fake thoughts engine
+
+        // Fake thoughts engine — varied timing to feel like actual thinking
         startFakeThoughts(type) {
             const thoughts = type === 'vision' ? this.visionThoughts : this.memoryThoughts;
             this.thoughtIndex = 0;
             this.currentThought = thoughts[0];
-            
-            this.thoughtInterval = setInterval(() => {
-                this.thoughtIndex = (this.thoughtIndex + 1) % thoughts.length;
-                this.currentThought = thoughts[this.thoughtIndex];
-            }, 800);
+
+            const scheduleNext = () => {
+                // Vary timing between 1.5s and 3.5s to feel more natural
+                const delay = 1500 + Math.random() * 2000;
+                this.thoughtInterval = setTimeout(() => {
+                    this.thoughtIndex = (this.thoughtIndex + 1) % thoughts.length;
+                    this.currentThought = thoughts[this.thoughtIndex];
+                    scheduleNext();
+                }, delay);
+            };
+            scheduleNext();
         },
-        
+
         stopFakeThoughts() {
             if (this.thoughtInterval) {
-                clearInterval(this.thoughtInterval);
+                clearTimeout(this.thoughtInterval);
                 this.thoughtInterval = null;
             }
             this.currentThought = '';
         },
-        
+
         // Progress simulation for 90s experience
         simulateProgress() {
-            // Phase 1: Thinking (0-30%) - 27s
             this.progressPercent = 0;
             this.currentSubstep = 'Initializing Gemini 3 Flash...';
-            
+
             const thinkingInterval = setInterval(() => {
                 if (this.progressPercent < 30) {
                     this.progressPercent += 1;
                     if (this.progressPercent === 10) this.currentSubstep = 'Analyzing image composition...';
                     if (this.progressPercent === 20) this.currentSubstep = 'Identifying object patterns...';
                 }
-            }, 900); // 27s total for 0→30%
-            
+            }, 900);
+
             // Phase 2: Code Generation (30-50%) - 18s
             setTimeout(() => {
                 this.codeGenerating = true;
@@ -249,9 +253,9 @@ function appState() {
                     } else {
                         clearInterval(codeInterval);
                     }
-                }, 900); // 18s for 30→50%
+                }, 900);
             }, 27000);
-            
+
             // Phase 3: Code Execution (50-90%) - 36s
             setTimeout(() => {
                 this.codeGenerating = false;
@@ -266,15 +270,15 @@ function appState() {
                         clearInterval(execInterval);
                         clearInterval(thinkingInterval);
                     }
-                }, 900); // 36s for 50→90%
+                }, 900);
             }, 45000);
         },
-        
+
         // Connect to discovered agent
         connectToAgent() {
             this.showAgentDiscovery = false;
         },
-        
+
         // Load sample images from backend
         async loadSampleImages() {
             try {
@@ -287,7 +291,7 @@ function appState() {
                 console.error('Failed to load sample images:', error);
             }
         },
-        
+
         // Select a sample image and auto-start
         async selectSampleImage(name) {
             try {
@@ -296,10 +300,10 @@ function appState() {
                     const blob = await response.blob();
                     this.uploadedFile = new File([blob], name, { type: blob.type });
                     this.uploadedImage = URL.createObjectURL(blob);
-                    
-                    // Auto-start the analysis after a brief delay
+
+                    // Auto-start the analysis — 500ms gives user time to register the image
                     this.$nextTick(() => {
-                        setTimeout(() => this.startAnalysis(), 300);
+                        setTimeout(() => this.startAnalysis(), 500);
                     });
                 }
             } catch (error) {
@@ -307,114 +311,136 @@ function appState() {
                 alert('Failed to load sample image. Please try again.');
             }
         },
-        
+
         // WebSocket connection
         connectWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws`;
-            
+
             this.ws = new WebSocket(wsUrl);
-            
+
             this.ws.onopen = () => {
                 console.log('WebSocket connected');
                 this.wsConnected = true;
             };
-            
+
             this.ws.onclose = () => {
                 console.log('WebSocket disconnected');
                 this.wsConnected = false;
-                
-                // Attempt to reconnect after 3 seconds
+
                 setTimeout(() => {
                     if (!this.wsConnected) {
                         this.connectWebSocket();
                     }
                 }, 3000);
             };
-            
+
             this.ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
             };
-            
+
             this.ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 this.handleWebSocketMessage(data);
             };
-            
-            // Send periodic ping to keep connection alive
+
             setInterval(() => {
                 if (this.ws && this.ws.readyState === WebSocket.OPEN) {
                     this.ws.send('ping');
                 }
             }, 30000);
         },
-        
+
         // Handle incoming WebSocket messages
         handleWebSocketMessage(data) {
             console.log('Received:', data);
-            
-            // Add to raw logs for the drawer
+
+            // Add to raw logs
             this.rawLogs.push({...data, timestamp: new Date().toISOString()});
-            
-            // Limit logs to 100 entries
             if (this.rawLogs.length > 100) {
                 this.rawLogs.shift();
             }
-            
+
             switch(data.type) {
                 case 'upload_complete':
                     this.step = 1;
                     this.startFakeThoughts('vision');
-                    this.simulateProgress();  // Start progress tracking
-                    this.playHum();
+                    this.simulateProgress();
+                    // Don't start hum yet — wait until vision_start (after discovery modal)
                     this.orchestratorText = "Control Tower → Vision Agent (A2A Discovery)";
                     break;
-                    
+
                 case 'discovery_start':
                     if (data.agent === 'vision') {
                         this.orchestratorText = "Discovering Vision Agent via A2A...";
-                    } else if (data.agent === 'supplier') {
-                        this.orchestratorText = "Discovering Supplier Agent via A2A...";
-                        // Show A2A discovery modal
+                        // Show A2A discovery modal for vision agent too
                         this.showAgentDiscovery = true;
                         this.discoveredAgent = null;
-                        // Simulate 3s discovery process
-                        setTimeout(() => {
-                            this.discoveredAgent = {
-                                name: 'supplier',
-                                displayName: 'Supplier Agent',
-                                description: 'Matches inventory needs with supplier database using AlloyDB vector search and semantic similarity',
-                                endpoint: 'supplier-agent.local:8001',
-                                capabilities: 'Vector search, Supplier matching, Pricing lookup'
-                            };
-                            this.playPing(); // Sound effect
-                        }, 3000);
+                        this.discoveryAgentType = 'vision';
+                    } else if (data.agent === 'supplier') {
+                        this.orchestratorText = "Discovering Supplier Agent via A2A...";
+                        this.showAgentDiscovery = true;
+                        this.discoveredAgent = null;
+                        this.discoveryAgentType = 'supplier';
                     }
                     break;
-                    
+
                 case 'discovery_complete':
                     if (data.agent === 'vision') {
                         this.orchestratorText = "Vision Agent → Gemini 3 Flash (Analyzing)";
                     }
-                    // Auto-close A2A modal after showing connected state
-                    if (this.showAgentDiscovery) {
-                        setTimeout(() => {
-                            this.showAgentDiscovery = false;
-                        }, 2000);
+
+                    // Populate modal with REAL agent card data from backend
+                    this.discoveredAgent = {
+                        name: data.agent,
+                        displayName: data.agent_name || (data.agent === 'vision' ? 'Vision Agent' : 'Supplier Agent'),
+                        description: data.agent_description || '',
+                        endpoint: data.agent_url || '',
+                        version: data.agent_version || '1.0.0',
+                        skills: data.agent_skills || [],
+                        inputModes: data.agent_input_modes || [],
+                        outputModes: data.agent_output_modes || [],
+                        protocolVersion: data.agent_protocol_version || '',
+                        transport: data.agent_transport || '',
+                        streaming: data.agent_streaming ?? false,
+                    };
+
+                    // Only play ping for supplier discovery (vision has the hum coming)
+                    if (data.agent === 'supplier') {
+                        this.playPing();
                     }
+
+                    // Modal stays open until user clicks "Continue"
                     break;
-                    
+
                 case 'vision_start':
                     this.orchestratorText = "Vision Agent → Gemini 3 Flash (Analyzing)";
+                    this.playHum(); // Start scanning hum when actual analysis begins
                     break;
-                    
+
                 case 'vision_progress':
                     // Live updates from backend during processing
                     this.liveLogStream.push({
                         time: new Date().toLocaleTimeString(),
                         message: data.message,
-                        type: data.substep  // 'thinking', 'code', 'execution'
+                        type: data.substep
                     });
+
+                    // Update progress phase based on substep from backend
+                    if (data.substep === 'code_generating' || data.substep === 'code') {
+                        this.codeGenerating = true;
+                        this.codeExecuting = false;
+                        if (this.progressPercent < 30) this.progressPercent = 30;
+                        this.currentSubstep = data.message;
+                    } else if (data.substep === 'code_executing' || data.substep === 'execution') {
+                        this.codeGenerating = false;
+                        this.codeExecuting = true;
+                        if (this.progressPercent < 50) this.progressPercent = 50;
+                        this.currentSubstep = data.message;
+                    } else if (data.substep === 'thinking') {
+                        this.currentSubstep = data.message;
+                    }
+
                     if (data.code) {
                         this.generatedCode = data.code;
                     }
@@ -422,12 +448,18 @@ function appState() {
                         this.executionOutput += data.output + '\n';
                     }
                     break;
-                    
+
                 case 'vision_complete':
                     this.stopFakeThoughts();
                     this.stopHum();
-                    
-                    // Store structured vision result with code execution detection
+
+                    // Jump progress to 100%
+                    this.progressPercent = 100;
+                    this.codeGenerating = false;
+                    this.codeExecuting = false;
+                    this.currentSubstep = 'Analysis complete';
+
+                    // Store structured vision result
                     this.visionResult = {
                         item_count: data.item_count,
                         item_type: data.item_type,
@@ -435,82 +467,84 @@ function appState() {
                         confidence: data.confidence,
                         search_query: data.search_query,
                         hasCodeExecution: (data.result && (
-                            data.result.includes("Code output:") || 
+                            data.result.includes("Code output:") ||
                             data.result.includes("Total boxes detected:") ||
                             data.result.includes("code_execution_result")
                         ))
                     };
-                    
-                    this.orchestratorText = "Vision Complete ✓";
-                    
-                    // Auto-advance to memory stage after 2.5s
+
+                    this.orchestratorText = "Vision Complete";
+
+                    // Add has-results class to body for sticky header spacing
+                    document.body.classList.add('has-results');
+
+                    // Auto-advance to memory stage
                     setTimeout(() => {
                         this.step = 2;
                         this.startFakeThoughts('memory');
                         this.orchestratorText = "Vision Agent → Supplier Agent (A2A Discovery)";
                     }, 2500);
                     break;
-                    
+
                 case 'vision_error':
                     this.stopFakeThoughts();
                     this.stopHum();
-                    this.orchestratorText = "Vision Agent Error ✗";
+                    this.orchestratorText = "Vision Agent Error";
                     this.isProcessing = false;
                     alert(`Vision Agent Error: ${data.message}`);
                     break;
-                    
+
                 case 'memory_start':
                     this.orchestratorText = "Supplier Agent → AlloyDB ScaNN (Searching)";
                     break;
-                    
+
                 case 'memory_complete':
                     this.stopFakeThoughts();
                     this.playPing();
-                    
-                    // Store supplier result
+
                     this.supplierResult = {
                         part: data.part,
                         supplier: data.supplier,
                         confidence: data.confidence
                     };
-                    
-                    this.orchestratorText = "Supplier Match Found ✓";
-                    
-                    // Auto-advance to order stage after 2.5s
+
+                    this.orchestratorText = "Supplier Match Found";
+
+                    // Auto-advance to order stage
                     setTimeout(() => {
                         this.step = 3;
                         this.orchestratorText = "Supplier Agent → Order System (Placing Order)";
                     }, 2500);
                     break;
-                    
+
                 case 'memory_error':
                     this.stopFakeThoughts();
-                    this.orchestratorText = "Supplier Agent Error ✗";
+                    this.orchestratorText = "Supplier Agent Error";
                     this.isProcessing = false;
                     alert(`Supplier Agent Error: ${data.message}`);
                     break;
-                    
+
                 case 'order_placed':
                     this.playSuccess();
-                    
-                    // Store order result
+
                     this.orderResult = {
                         orderId: data.order_id
                     };
-                    
-                    this.orchestratorText = "Order Placed Successfully ✓";
+
+                    this.orchestratorText = "Order Placed Successfully";
                     this.isProcessing = false;
+                    // Set step to 4 so step 3 ("Place Order") shows as completed
+                    this.step = 4;
                     break;
-                    
+
                 case 'pong':
-                    // Connection health check response
                     break;
-                    
+
                 default:
                     console.log('Unknown message type:', data.type);
             }
         },
-        
+
         // File upload handlers
         handleFileSelect(event) {
             const file = event.target.files[0];
@@ -518,7 +552,7 @@ function appState() {
                 this.processFile(file);
             }
         },
-        
+
         handleDrop(event) {
             this.isDragging = false;
             const file = event.dataTransfer.files[0];
@@ -526,7 +560,7 @@ function appState() {
                 this.processFile(file);
             }
         },
-        
+
         processFile(file) {
             this.uploadedFile = file;
             const reader = new FileReader();
@@ -535,13 +569,11 @@ function appState() {
             };
             reader.readAsDataURL(file);
         },
-        
+
         resetUpload() {
-            // Stop any ongoing processes
             this.stopFakeThoughts();
             this.stopHum();
-            
-            // Reset all state
+
             this.uploadedImage = null;
             this.uploadedFile = null;
             this.isProcessing = false;
@@ -551,8 +583,7 @@ function appState() {
             this.orderResult = null;
             this.orchestratorText = "System Ready";
             this.rawLogs = [];
-            
-            // Reset progress tracking
+
             this.progressPercent = 0;
             this.currentSubstep = '';
             this.codeGenerating = false;
@@ -562,37 +593,37 @@ function appState() {
             this.liveLogStream = [];
             this.showAgentDiscovery = false;
             this.discoveredAgent = null;
+            this.discoveryAgentType = null;
+
+            document.body.classList.remove('has-results');
         },
-        
+
         // Start analysis workflow
         async startAnalysis() {
             if (!this.uploadedFile || this.isProcessing) return;
-            
+
             this.isProcessing = true;
-            
-            // Reset results
+
             this.visionResult = null;
             this.supplierResult = null;
             this.orderResult = null;
             this.rawLogs = [];
-            
-            // Upload file to backend
+
             const formData = new FormData();
             formData.append('file', this.uploadedFile);
-            
+
             try {
                 const response = await fetch('/api/analyze', {
                     method: 'POST',
                     body: formData
                 });
-                
+
                 if (!response.ok) {
                     throw new Error('Upload failed');
                 }
-                
-                // Backend will send updates via WebSocket
+
                 console.log('Analysis started, listening for WebSocket events...');
-                
+
             } catch (error) {
                 console.error('Upload error:', error);
                 alert('Failed to upload image. Please try again.');

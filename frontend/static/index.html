@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Autonomous Supply Chain Control Tower</title>
     <meta name="theme-color" content="#08090A">
-    
+
     <link rel="stylesheet" href="/static/styles.css">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body x-data="appState()">
-    
+
     <!-- ═══════════════════════════════════════════
          STICKY RESULTS BAR (builds up as data arrives)
          ═══════════════════════════════════════════ -->
@@ -41,74 +41,85 @@
             New Analysis
         </button>
     </div>
-    
+
     <!-- ═══════════════════════════════════════════
-         HEADER
+         FIXED CONTROLS (top right)
          ═══════════════════════════════════════════ -->
-    <header :style="visionResult ? 'padding-top: 3.5rem;' : ''">
-        <h1 class="hero-title">Autonomous Supply Chain Control Tower</h1>
-        <p class="hero-subtitle">Gemini 3 Flash · AlloyDB AI · A2A Protocol</p>
-        
-        <!-- Fixed controls -->
-        <div style="position: fixed; top: 1rem; right: 1.5rem; display: flex; gap: 0.75rem; z-index: 1000;">
-            <button @click="toggleAudio()" class="mute-toggle no-print" :title="audioEnabled ? 'Mute' : 'Unmute'">
-                <span x-show="audioEnabled">🔊</span>
-                <span x-show="!audioEnabled">🔇</span>
-            </button>
-            <div class="connection-status no-print">
-                <div class="connection-dot" :class="wsConnected ? 'connected' : 'disconnected'"></div>
-                <span x-text="wsConnected ? 'Live' : 'Offline'"></span>
-            </div>
+    <div class="fixed-controls no-print">
+        <button @click="toggleAudio()" class="mute-toggle" :title="audioEnabled ? 'Mute' : 'Unmute'">
+            <span x-show="audioEnabled">&#x1f50a;</span>
+            <span x-show="!audioEnabled">&#x1f507;</span>
+        </button>
+        <div class="connection-status">
+            <div class="connection-dot" :class="wsConnected ? 'connected' : 'disconnected'"></div>
+            <span x-text="wsConnected ? 'Live' : 'Offline'"></span>
         </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════
+         HEADER (hidden when results header visible)
+         ═══════════════════════════════════════════ -->
+    <header :class="{'header-hidden': visionResult}">
+        <h1 class="hero-title">Autonomous Supply Chain Control Tower</h1>
+        <p class="hero-subtitle">Gemini 3 Flash &middot; AlloyDB AI &middot; A2A Protocol</p>
     </header>
-    
+
     <!-- ═══════════════════════════════════════════
          MAIN CONTENT AREA
          ═══════════════════════════════════════════ -->
-    <div class="app-container">
-        
+    <div class="app-container" :class="{'has-sidebar': step > 0}">
+
         <!-- ──────────────────────────────────
              MAIN CARD (center column)
              ────────────────────────────────── -->
         <div class="main-glass-card">
-        
-            <!-- ACT 1: UPLOAD ─────────────────── -->
+
+            <!-- ACT 0: UPLOAD ─────────────────── -->
             <section class="act act-upload" :class="{ 'active': step === 0 }" x-show="step === 0">
-                
-                <div class="upload-hero">
-                    <h2 class="upload-title">Analyze Your Warehouse</h2>
-                    <p class="upload-instructions">Upload a shelf image to count inventory, match suppliers, and place orders — all autonomously powered by AI agents.</p>
+
+                <!-- Sample images FIRST — prominent, above fold -->
+                <div x-show="sampleImages.length > 0 && !uploadedImage" class="samples-section">
+                    <div class="samples-header">
+                        <span class="samples-label">Quick start</span>
+                        <div class="samples-line"></div>
+                    </div>
+                    <div class="samples-grid">
+                        <template x-for="img in sampleImages" :key="img.name">
+                            <div class="sample-card" @click="selectSampleImage(img.name)">
+                                <img :src="`/api/test-image/${img.name}`" :alt="img.name" loading="eager">
+                                <div class="sample-overlay">
+                                    <span class="sample-action">Analyze this image</span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
                 </div>
-                
-                <!-- Drop zone -->
+
+                <!-- Upload area (compact) -->
                 <div class="upload-area"
-                     :class="{'drag-over': isDragging}"
+                     :class="{'drag-over': isDragging, 'has-image': uploadedImage}"
                      @dragover.prevent="isDragging = true"
                      @dragleave.prevent="isDragging = false"
                      @drop.prevent="handleDrop($event)">
-                    
+
                     <template x-if="!uploadedImage">
-                        <div>
-                            <svg style="margin: 0 auto; width: 3rem; height: 3rem; color: var(--text-20);" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                        <label for="file-upload" class="upload-label">
+                            <svg class="upload-icon" stroke="currentColor" fill="none" viewBox="0 0 48 48">
                                 <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                             </svg>
-                            <div style="margin-top: 1rem;">
-                                <label for="file-upload" style="cursor: pointer;">
-                                    <span style="font-size: 0.9rem; color: var(--text-60);">
-                                        <span style="font-weight: 600; color: var(--blue);">Upload a file</span>
-                                        or drag and drop
-                                    </span>
-                                    <p style="font-size: 0.75rem; color: var(--text-20); margin-top: 0.5rem; font-family: var(--font-mono);">PNG, JPG, JPEG up to 10MB</p>
-                                </label>
-                                <input id="file-upload" type="file" style="display: none;" accept="image/*" @change="handleFileSelect($event)">
-                            </div>
-                        </div>
+                            <span class="upload-text">
+                                <span class="upload-link">Upload a file</span>
+                                or drag and drop
+                            </span>
+                            <span class="upload-hint">PNG, JPG, JPEG up to 10MB</span>
+                            <input id="file-upload" type="file" style="display: none;" accept="image/*" @change="handleFileSelect($event)">
+                        </label>
                     </template>
-                    
+
                     <template x-if="uploadedImage">
                         <div style="position: relative;">
-                            <img :src="uploadedImage" alt="Uploaded warehouse image">
-                            <button @click="resetUpload()" style="position: absolute; top: 0.5rem; right: 0.5rem; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 32px; height: 32px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 200ms ease;">
+                            <img :src="uploadedImage" alt="Uploaded warehouse image" class="uploaded-preview">
+                            <button @click="resetUpload()" class="remove-image-btn">
                                 <svg style="width: 1rem; height: 1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                                 </svg>
@@ -116,10 +127,10 @@
                         </div>
                     </template>
                 </div>
-                
-                <!-- Start button -->
-                <div class="text-center" style="margin-top: var(--space-6);">
-                    <button @click="startAnalysis()" 
+
+                <!-- Start button (only shows when image uploaded) -->
+                <div class="text-center" x-show="uploadedImage" style="margin-top: var(--space-5);">
+                    <button @click="startAnalysis()"
                             :disabled="!uploadedImage || isProcessing"
                             class="btn btn-primary btn-lg">
                         <template x-if="!isProcessing">
@@ -133,48 +144,61 @@
                         </template>
                     </button>
                 </div>
-                
-                <!-- Sample images -->
-                <div x-show="sampleImages.length > 0 && !uploadedImage" class="samples-section">
-                    <div class="samples-header">
-                        <span class="samples-label">Or try a sample</span>
-                        <div class="samples-line"></div>
+
+                <!-- Value proposition -->
+                <div class="value-props" x-show="!uploadedImage">
+                    <div class="value-prop">
+                        <div class="prop-icon" style="color: var(--blue);">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        </div>
+                        <div>
+                            <div class="prop-title">Count with Gemini 3 Flash</div>
+                            <div class="prop-desc">Code execution counts boxes via OpenCV</div>
+                        </div>
                     </div>
-                    <div class="samples-grid">
-                        <template x-for="img in sampleImages" :key="img.name">
-                            <div class="sample-card" @click="selectSampleImage(img.name)">
-                                <img :src="`/api/test-image/${img.name}`" :alt="img.name">
-                                <div class="sample-overlay">
-                                    <span class="sample-action">Analyze →</span>
-                                </div>
-                            </div>
-                        </template>
+                    <div class="value-prop">
+                        <div class="prop-icon" style="color: var(--purple);">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                        </div>
+                        <div>
+                            <div class="prop-title">Match via AlloyDB ScaNN</div>
+                            <div class="prop-desc">Vector search across 1M+ supplier parts</div>
+                        </div>
+                    </div>
+                    <div class="value-prop">
+                        <div class="prop-icon" style="color: var(--green);">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </div>
+                        <div>
+                            <div class="prop-title">Order via A2A Protocol</div>
+                            <div class="prop-desc">Agent-to-agent autonomous procurement</div>
+                        </div>
                     </div>
                 </div>
-                
+
             </section>
-            
-            <!-- ACT 2: VISION ─────────────────── -->
+
+            <!-- ACT 1: VISION ─────────────────── -->
             <section class="act act-vision" :class="{ 'active': step === 1 }" x-show="step === 1">
                 <div class="image-stage">
                     <img :src="uploadedImage" alt="Analyzing…">
-                    
+
                     <!-- Scan line -->
                     <div class="scan-overlay" x-show="!visionResult">
                         <div class="scan-line"></div>
                     </div>
-                    
+
                     <!-- Thought stream -->
                     <div class="thought-overlay" x-show="currentThought && !visionResult">
                         <span class="thought-text" x-text="currentThought"></span>
                         <span class="thought-cursor"></span>
                     </div>
-                    
+
                     <!-- Result badge -->
                     <div x-show="visionResult" class="result-container">
                         <div class="count-badge">
                             <div class="badge-indicator" :class="{'confirmed': visionResult?.hasCodeExecution, 'estimated': !visionResult?.hasCodeExecution}">
-                                <span x-show="visionResult?.hasCodeExecution">✓</span>
+                                <span x-show="visionResult?.hasCodeExecution">&#10003;</span>
                                 <span x-show="!visionResult?.hasCodeExecution">~</span>
                             </div>
                             <div class="badge-content">
@@ -186,70 +210,80 @@
                     </div>
                 </div>
             </section>
-            
-            <!-- ACT 3: SUPPLIER MATCH ─────────── -->
+
+            <!-- ACT 2: SUPPLIER MATCH ─────────── -->
             <section class="act act-memory" :class="{ 'active': step === 2 }" x-show="step === 2">
-                <div class="split-view">
-                    <!-- Thumbnail -->
-                    <div class="image-thumbnail">
-                        <img :src="uploadedImage" alt="Analyzed image">
-                        <div style="margin-top: 0.75rem; text-align: center;">
-                            <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-100);" x-text="visionResult ? `${visionResult.item_count} ${visionResult.item_type}` : ''"></div>
-                            <div class="search-label" x-show="visionResult">
-                                Querying: <strong x-text="visionResult ? visionResult.search_query : ''"></strong>
+                <!-- Transition header -->
+                <div class="act-transition-header">
+                    <div class="transition-badge vision-done">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/></svg>
+                        <span x-text="visionResult ? `${visionResult.item_count} ${visionResult.item_type} detected` : ''"></span>
+                    </div>
+                    <div class="transition-arrow">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                    </div>
+                    <div class="transition-badge supplier-active">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                        <span>Finding supplier match</span>
+                    </div>
+                </div>
+
+                <!-- Supplier search visualization -->
+                <div class="supplier-search-container">
+                    <!-- Searching state -->
+                    <div class="vector-search-viz" x-show="!supplierResult">
+                        <div class="search-animation-container">
+                            <div class="db-icon-container">
+                                <svg class="db-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/></svg>
+                                <span class="db-label">AlloyDB</span>
                             </div>
+                            <div class="search-vectors">
+                                <div class="vector-line"></div>
+                                <div class="vector-line"></div>
+                                <div class="vector-line"></div>
+                                <div class="vector-line"></div>
+                                <div class="vector-line"></div>
+                            </div>
+                        </div>
+                        <div class="search-status-text">
+                            <span class="search-query-label">Search query:</span>
+                            <span class="search-query-value" x-text="visionResult ? visionResult.search_query : ''"></span>
                         </div>
                     </div>
-                    
-                    <!-- Map -->
-                    <div class="map-container">
-                        <svg class="map-svg" viewBox="0 0 1000 500" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M100,80 L180,70 L250,90 L280,140 L260,180 L220,200 L180,190 L140,160 L120,120 Z"/>
-                            <path d="M240,250 L260,240 L280,260 L290,300 L280,360 L260,400 L240,420 L220,400 L210,360 L220,300 Z"/>
-                            <path d="M480,100 L520,90 L560,110 L580,140 L560,170 L520,180 L480,170 L460,140 Z"/>
-                            <path d="M480,200 L520,190 L560,210 L580,260 L570,320 L540,360 L500,360 L470,320 L460,260 Z"/>
-                            <path d="M600,80 L700,70 L780,90 L820,130 L800,180 L760,200 L700,190 L640,160 L610,120 Z"/>
-                            <path d="M750,320 L800,310 L840,330 L850,360 L830,390 L790,400 L750,390 L730,360 Z"/>
-                        </svg>
-                        
-                        <div class="radar-ping" x-show="!supplierResult">
-                            <div class="radar-circle"></div>
-                            <div class="radar-circle"></div>
-                            <div class="radar-circle"></div>
+
+                    <!-- Result state -->
+                    <div class="supplier-result-card" x-show="supplierResult" x-transition>
+                        <div class="supplier-result-header">
+                            <div class="match-indicator"></div>
+                            <span>Supplier Match Found</span>
                         </div>
-                        
-                        <div class="supplier-pin" x-show="supplierResult">
-                            <div class="pin-icon">📍</div>
-                        </div>
-                        
-                        <div class="supplier-card" x-show="supplierResult">
-                            <div class="supplier-card-header">Match Found</div>
-                            <div class="supplier-detail">
-                                <span class="supplier-label">Part</span>
-                                <span class="supplier-value" x-text="supplierResult ? supplierResult.part : ''"></span>
+                        <div class="supplier-result-details">
+                            <div class="supplier-detail-row">
+                                <span class="detail-label">Part</span>
+                                <span class="detail-value" x-text="supplierResult ? supplierResult.part : ''"></span>
                             </div>
-                            <div class="supplier-detail">
-                                <span class="supplier-label">Supplier</span>
-                                <span class="supplier-value" x-text="supplierResult ? supplierResult.supplier : ''"></span>
+                            <div class="supplier-detail-row">
+                                <span class="detail-label">Supplier</span>
+                                <span class="detail-value" x-text="supplierResult ? supplierResult.supplier : ''"></span>
                             </div>
-                            <div class="supplier-detail">
-                                <span class="supplier-label">Confidence</span>
-                                <span class="supplier-value confidence-high" x-text="supplierResult ? supplierResult.confidence : ''"></span>
+                            <div class="supplier-detail-row">
+                                <span class="detail-label">Match Confidence</span>
+                                <span class="detail-value confidence-high" x-text="supplierResult ? supplierResult.confidence : ''"></span>
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
-            
-            <!-- ACT 4: ORDER ──────────────────── -->
-            <section class="act act-order" :class="{ 'active': step === 3 }" x-show="step === 3">
+
+            <!-- ACT 3: ORDER ──────────────────── -->
+            <section class="act act-order" :class="{ 'active': step === 3 || step === 4 }" x-show="step === 3 || step === 4">
                 <div class="receipt-card">
                     <div class="receipt-header">
-                        <div class="receipt-checkmark">✓</div>
+                        <div class="receipt-checkmark">&#10003;</div>
                         <div class="receipt-title">Order Placed</div>
                         <div class="receipt-subtitle">Autonomous procurement complete</div>
                     </div>
-                    
+
                     <div class="receipt-details">
                         <div class="receipt-row">
                             <span class="receipt-label">Order ID</span>
@@ -272,7 +306,7 @@
                             <span class="receipt-value confidence-high" x-text="visionResult ? visionResult.confidence : ''"></span>
                         </div>
                     </div>
-                    
+
                     <div class="text-center">
                         <button @click="resetUpload()" class="btn btn-primary btn-lg">
                             Run Another Analysis
@@ -280,67 +314,19 @@
                     </div>
                 </div>
             </section>
-            
+
         </div> <!-- /main-glass-card -->
-        
+
         <!-- ──────────────────────────────────
-             RIGHT PANELS (sticky sidebar)
+             RIGHT PANELS (sticky sidebar — visible when step > 0)
              ────────────────────────────────── -->
-        <div class="floating-panels-container">
-            
-            <!-- Results summary (persistent) -->
-            <div class="results-summary-panel floating-status-card" x-show="visionResult !== null" x-transition>
-                <h3 class="panel-title">Analysis Results</h3>
-                <div class="summary-grid">
-                    <div class="summary-item">
-                        <div class="summary-icon">📦</div>
-                        <div>
-                            <div class="summary-label">Item Count</div>
-                            <div class="summary-value" x-text="visionResult?.item_count || '0'"></div>
-                        </div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-icon">🏷️</div>
-                        <div>
-                            <div class="summary-label">Item Type</div>
-                            <div class="summary-value" x-text="visionResult?.item_type || 'N/A'"></div>
-                        </div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-icon">✓</div>
-                        <div>
-                            <div class="summary-label">Confidence</div>
-                            <div class="summary-value" x-text="visionResult?.confidence || 'N/A'"></div>
-                        </div>
-                    </div>
-                    <div class="summary-item" x-show="supplierResult">
-                        <div class="summary-icon">🏭</div>
-                        <div>
-                            <div class="summary-label">Supplier</div>
-                            <div class="summary-value" style="font-size: 0.875rem;" x-text="supplierResult?.supplier || 'N/A'"></div>
-                        </div>
-                    </div>
-                    <div class="summary-item" x-show="orderResult">
-                        <div class="summary-icon">✅</div>
-                        <div>
-                            <div class="summary-label">Order ID</div>
-                            <div class="summary-value" style="color: var(--green);" x-text="orderResult?.orderId || 'N/A'"></div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Code output -->
-                <div class="execution-output-compact" x-show="executionOutput" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--surface-3);">
-                    <div class="summary-label" style="margin-bottom: 0.5rem;">Code Output</div>
-                    <pre x-text="executionOutput"></pre>
-                </div>
-            </div>
-            
-            <!-- Workflow progress -->
-            <div class="workflow-panel floating-status-card" x-show="isProcessing || step > 0">
-                
+        <div class="floating-panels-container" x-show="step > 0" x-transition>
+
+            <!-- Workflow timeline (always visible during/after processing) -->
+            <div class="workflow-panel floating-status-card">
+
                 <!-- Progress bar section -->
-                <div class="progress-section" x-show="isProcessing">
+                <div class="progress-section" x-show="isProcessing && step === 1">
                     <h3 class="panel-title">Analysis Progress</h3>
                     <div class="progress-bar-container">
                         <div class="progress-bar-fill" :style="`width: ${progressPercent}%`"></div>
@@ -348,9 +334,9 @@
                     </div>
                     <div class="current-substep">
                         <div class="substep-icon">
-                            <span x-show="progressPercent < 30">🧠</span>
-                            <span x-show="progressPercent >= 30 && progressPercent < 50">📝</span>
-                            <span x-show="progressPercent >= 50">⚡</span>
+                            <span x-show="progressPercent < 30">&#129504;</span>
+                            <span x-show="progressPercent >= 30 && progressPercent < 50">&#128221;</span>
+                            <span x-show="progressPercent >= 50">&#9889;</span>
                         </div>
                         <div class="substep-text" x-text="currentSubstep"></div>
                     </div>
@@ -370,7 +356,7 @@
                         <span>Running detection…</span>
                     </div>
                     <div class="live-logs" x-show="liveLogStream.length > 0">
-                        <template x-for="log in liveLogStream.slice(-3)" :key="log.time">
+                        <template x-for="log in liveLogStream.slice(-3)" :key="log.time + log.message">
                             <div class="log-item">
                                 <span class="log-time" x-text="log.time"></span>
                                 <span class="log-msg" x-text="log.message"></span>
@@ -378,7 +364,7 @@
                         </template>
                     </div>
                 </div>
-                
+
                 <!-- Workflow timeline -->
                 <div class="progress-timeline">
                     <h3 class="panel-title">Workflow</h3>
@@ -395,16 +381,16 @@
                             <div class="step-indicator"></div>
                             <span>Supplier Match</span>
                         </div>
-                        <div class="timeline-step" :class="{'active': step >= 3, 'completed': step > 3}">
+                        <div class="timeline-step" :class="{'active': step >= 3, 'completed': step >= 4}">
                             <div class="step-indicator"></div>
                             <span>Place Order</span>
                         </div>
                     </div>
                 </div>
             </div>
-            
-            <!-- Agent activity -->
-            <div class="agent-panel floating-status-card tint-vision" x-show="isProcessing">
+
+            <!-- Agent activity (visible during processing) -->
+            <div class="agent-panel floating-status-card" :class="{'tint-vision': step === 1, 'tint-memory': step === 2, 'tint-action': step >= 3}" x-show="isProcessing || step > 0">
                 <h3 class="panel-title">Agent Activity</h3>
                 <div class="agent-activity">
                     <div class="activity-text" x-text="orchestratorText || 'System ready'"></div>
@@ -415,27 +401,27 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Code viewer -->
             <div class="code-viewer-section floating-status-card" x-show="generatedCode">
                 <button class="panel-toggle" @click="showCode = !showCode">
-                    <span x-text="showCode ? '▾' : '▸'"></span>
+                    <span x-text="showCode ? '&#9662;' : '&#9656;'"></span>
                     Generated Code
                 </button>
                 <pre class="code-block" x-show="showCode" x-text="generatedCode"></pre>
             </div>
-            
+
             <!-- Output viewer -->
             <div class="output-viewer-section floating-status-card" x-show="executionOutput">
                 <button class="panel-toggle" @click="showOutput = !showOutput">
-                    <span x-text="showOutput ? '▾' : '▸'"></span>
+                    <span x-text="showOutput ? '&#9662;' : '&#9656;'"></span>
                     Execution Output
                 </button>
                 <pre class="output-block" x-show="showOutput" x-text="executionOutput"></pre>
             </div>
-            
+
         </div> <!-- /floating-panels-container -->
-        
+
         <!-- ──────────────────────────────────
              A2A AGENT DISCOVERY MODAL
              ────────────────────────────────── -->
@@ -443,49 +429,86 @@
             <div class="discovery-backdrop" @click="showAgentDiscovery = false"></div>
             <div class="discovery-container">
                 <div class="discovery-header">
-                    <h3>Agent Discovery · A2A</h3>
-                    <button class="close-btn" @click="showAgentDiscovery = false">×</button>
+                    <h3>Agent Discovery &middot; A2A Protocol</h3>
+                    <button class="close-btn" @click="showAgentDiscovery = false">&times;</button>
                 </div>
-                
-                <div class="agent-search-animation">
+
+                <!-- Radar animation (shows while searching) -->
+                <div class="agent-search-animation" x-show="!discoveredAgent">
                     <div class="search-radar"></div>
                     <div class="search-pulse"></div>
+                    <div class="search-label-text">Scanning network...</div>
                 </div>
-                
+
+                <!-- Agent card (shows when found — with REAL data) -->
                 <div class="agent-card" x-show="discoveredAgent" x-transition>
                     <div class="agent-icon">
-                        <span x-show="discoveredAgent?.name === 'supplier'">🏭</span>
-                        <span x-show="discoveredAgent?.name === 'order'">📦</span>
+                        <span x-show="discoveredAgent?.name === 'vision'">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.5"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        </span>
+                        <span x-show="discoveredAgent?.name === 'supplier'">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="1.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/></svg>
+                        </span>
                     </div>
                     <div class="agent-info">
                         <h4 x-text="discoveredAgent?.displayName"></h4>
                         <p x-text="discoveredAgent?.description"></p>
                         <div class="agent-meta">
-                            <span class="meta-item">
-                                <strong>Endpoint:</strong> <code x-text="discoveredAgent?.endpoint"></code>
-                            </span>
-                            <span class="meta-item">
-                                <strong>Protocol:</strong> A2A v1.0
-                            </span>
-                            <span class="meta-item">
-                                <strong>Capabilities:</strong> <span x-text="discoveredAgent?.capabilities"></span>
-                            </span>
+                            <div class="meta-item">
+                                <span class="meta-label">Endpoint</span>
+                                <code x-text="discoveredAgent?.endpoint"></code>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Version</span>
+                                <code x-text="discoveredAgent?.version"></code>
+                            </div>
+                            <div class="meta-item" x-show="discoveredAgent?.skills?.length > 0">
+                                <span class="meta-label">Skills</span>
+                                <div class="meta-skills-block">
+                                    <template x-for="skill in (discoveredAgent?.skills || [])" :key="skill.id">
+                                        <div class="skill-detail">
+                                            <span class="skill-tag" x-text="skill.name"></span>
+                                            <div class="skill-tags" x-show="skill.tags?.length > 0">
+                                                <template x-for="tag in (skill.tags || [])" :key="tag">
+                                                    <span class="skill-micro-tag" x-text="tag"></span>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            <div class="meta-item" x-show="discoveredAgent?.inputModes?.length > 0">
+                                <span class="meta-label">Input</span>
+                                <span class="meta-value" x-text="(discoveredAgent?.inputModes || []).join(', ')"></span>
+                            </div>
+                            <div class="meta-item" x-show="discoveredAgent?.protocolVersion">
+                                <span class="meta-label">Protocol</span>
+                                <code x-text="'A2A v' + discoveredAgent?.protocolVersion"></code>
+                            </div>
+                            <div class="meta-item" x-show="discoveredAgent?.transport">
+                                <span class="meta-label">Transport</span>
+                                <code x-text="discoveredAgent?.transport"></code>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Streaming</span>
+                                <span class="meta-value" x-text="discoveredAgent?.streaming ? 'Supported' : 'Not supported'"></span>
+                            </div>
                         </div>
                     </div>
                     <div class="agent-status">
                         <div class="status-badge success">Connected</div>
                     </div>
                 </div>
-                
+
                 <button class="connect-btn" x-show="discoveredAgent" @click="connectToAgent()">
-                    Connect to Agent
+                    Continue
                 </button>
             </div>
         </div>
-        
+
     </div> <!-- /app-container -->
-    
+
     <script src="/static/app.js"></script>
-    
+
 </body>
 </html>
