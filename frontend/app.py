@@ -240,7 +240,7 @@ async def run_workflow_with_events(image_bytes: bytes):
     Emits WebSocket events at each step for real-time UI updates.
     """
     
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         # Phase 0: Upload complete
         await manager.broadcast({
             "type": "upload_complete",
@@ -427,15 +427,31 @@ async def run_workflow_with_events(image_bytes: bytes):
                     search_query="inventory items"
                 )
             
+            # Extract bounding boxes from tagged section in vision response
+            bounding_boxes = []
+            clean_vision_text = vision_text
+            if "[BOUNDING_BOXES]" in vision_text:
+                try:
+                    bbox_start = vision_text.index("[BOUNDING_BOXES]") + len("[BOUNDING_BOXES]")
+                    bbox_end = vision_text.index("[/BOUNDING_BOXES]")
+                    bbox_json = vision_text[bbox_start:bbox_end]
+                    bounding_boxes = json.loads(bbox_json)
+                    # Remove the tagged section from the display text
+                    clean_vision_text = vision_text[:vision_text.index("[BOUNDING_BOXES]")].strip()
+                    logger.info(f"Extracted {len(bounding_boxes)} bounding boxes from vision response")
+                except Exception as e:
+                    logger.warning(f"Failed to parse bounding boxes: {e}")
+
             await manager.broadcast({
                 "type": "vision_complete",
                 "message": "Vision analysis complete",
-                "result": vision_text,                          # raw text for logs
+                "result": clean_vision_text,                     # raw text for logs (without bbox tags)
                 "item_count": vision_structured.item_count,      # 15
                 "item_type": vision_structured.item_type,        # "cardboard boxes"
                 "summary": vision_structured.summary,            # "15 cardboard shipping boxes detected"
                 "confidence": vision_structured.confidence,      # "high"
                 "search_query": vision_structured.search_query,  # "cardboard shipping boxes warehouse"
+                "bounding_boxes": bounding_boxes,                # [{box_2d: [y0,x0,y1,x1], label: "..."}, ...]
                 "timestamp": asyncio.get_event_loop().time()
             })
             

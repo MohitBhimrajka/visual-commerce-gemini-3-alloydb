@@ -24,6 +24,9 @@ function appState() {
         // Vision result (structured from backend)
         visionResult: null,
 
+        // Bounding boxes from Gemini spatial understanding
+        boundingBoxes: [],
+
         // Supplier result
         supplierResult: null,
 
@@ -473,6 +476,9 @@ function appState() {
                         ))
                     };
 
+                    // Store bounding boxes from Gemini spatial understanding
+                    this.boundingBoxes = data.bounding_boxes || [];
+
                     this.orchestratorText = "Vision Complete";
 
                     // Add has-results class to body for sticky header spacing
@@ -579,6 +585,7 @@ function appState() {
             this.isProcessing = false;
             this.step = 0;
             this.visionResult = null;
+            this.boundingBoxes = [];
             this.supplierResult = null;
             this.orderResult = null;
             this.orchestratorText = "System Ready";

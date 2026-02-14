@@ -194,6 +194,16 @@
                         <span class="thought-cursor"></span>
                     </div>
 
+                    <!-- Bounding boxes overlay (Gemini spatial understanding) -->
+                    <div class="bbox-overlay" x-show="visionResult && boundingBoxes.length > 0">
+                        <template x-for="(box, idx) in boundingBoxes" :key="idx">
+                            <div class="bbox-rect"
+                                 :style="`top: ${box.box_2d[0] / 10}%; left: ${box.box_2d[1] / 10}%; height: ${(box.box_2d[2] - box.box_2d[0]) / 10}%; width: ${(box.box_2d[3] - box.box_2d[1]) / 10}%; animation-delay: ${idx * 60}ms;`">
+                                <span class="bbox-label" x-text="box.label"></span>
+                            </div>
+                        </template>
+                    </div>
+
                     <!-- Result badge -->
                     <div x-show="visionResult" class="result-container">
                         <div class="count-badge">
