@@ -25,6 +25,7 @@ from PIL import Image
 
 from a2a.client import A2ACardResolver, A2AClient
 from a2a.types import MessageSendParams, SendMessageRequest
+from pydantic import BaseModel, Field
 
 # Configure comprehensive logging with environment-based level
 log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
@@ -41,6 +42,14 @@ logger.info(f"Logging initialized at {log_level} level")
 
 # Load environment variables from .env file (searches up directory tree)
 load_dotenv(find_dotenv(usecwd=True))
+
+# Pydantic schema for structured vision output
+class VisionResult(BaseModel):
+    item_count: int = Field(description="Number of items detected in the image")
+    item_type: str = Field(description="Type of items detected, e.g. 'cardboard boxes'")
+    summary: str = Field(description="One crisp sentence: what was found and how many")
+    confidence: str = Field(description="high, medium, or low")
+    search_query: str = Field(description="3-5 word semantic search query for supplier database")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 VISION_URL = os.environ.get("VISION_AGENT_URL", "http://localhost:8081")
@@ -293,19 +302,88 @@ async def run_workflow_with_events(image_bytes: bytes):
                 ),
             )
             
+            # Broadcast initial thinking progress
+            await manager.broadcast({
+                "type": "vision_progress",
+                "substep": "thinking",
+                "message": "Gemini 3 analyzing image composition...",
+                "timestamp": asyncio.get_event_loop().time()
+            })
+            
             response = await vision_client.send_message(request)
             vision_text = extract_text_from_response(response)
             
-            # Check if we have code execution results
-            code_output = None
-            if "Code output:" in vision_text or "result" in vision_text.lower():
-                code_output = vision_text
+            # Check if code was generated and executed
+            has_code = "```python" in vision_text or "def " in vision_text
+            has_execution = "Code output:" in vision_text or "result" in vision_text.lower()
+            
+            if has_code:
+                # Extract code from response
+                try:
+                    code_section = vision_text.split("```python")[1].split("```")[0] if "```python" in vision_text else None
+                    if code_section:
+                        await manager.broadcast({
+                            "type": "vision_progress",
+                            "substep": "code",
+                            "message": "Code generation complete",
+                            "code": code_section.strip(),
+                            "timestamp": asyncio.get_event_loop().time()
+                        })
+                except Exception:
+                    pass
+            
+            if has_execution:
+                # Extract execution output
+                try:
+                    if "Code output:" in vision_text:
+                        output = vision_text.split("Code output:")[1].split("\n\n")[0].strip()
+                        await manager.broadcast({
+                            "type": "vision_progress",
+                            "substep": "execution",
+                            "message": "Code execution complete",
+                            "output": output,
+                            "timestamp": asyncio.get_event_loop().time()
+                        })
+                except Exception:
+                    pass
+            
+            # Quick Flash Lite call to structure the raw vision output for the cinematic UI
+            try:
+                from google import genai
+                from google.genai import types
+
+                gemini_client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+                structured_response = gemini_client.models.generate_content(
+                    model="gemini-2.5-flash-lite",
+                    contents=f"Extract structured data from this vision analysis:\n\n{vision_text}",
+                    config=types.GenerateContentConfig(
+                        temperature=0,
+                        max_output_tokens=150,
+                        response_mime_type="application/json",
+                        response_json_schema=VisionResult.model_json_schema(),
+                    )
+                )
+                vision_structured = VisionResult.model_validate_json(structured_response.text)
+                logger.info(f"Flash Lite structured output: count={vision_structured.item_count}, type={vision_structured.item_type}")
+            except Exception as e:
+                logger.warning(f"Flash Lite structuring failed, using fallback: {e}")
+                vision_structured = VisionResult(
+                    item_count=0, 
+                    item_type="items", 
+                    summary=vision_text[:100],
+                    confidence="low", 
+                    search_query="inventory items"
+                )
             
             await manager.broadcast({
                 "type": "vision_complete",
                 "message": "Vision analysis complete",
-                "result": vision_text,
-                "code_output": code_output,
+                "result": vision_text,                          # raw text for logs
+                "item_count": vision_structured.item_count,      # 15
+                "item_type": vision_structured.item_type,        # "cardboard boxes"
+                "summary": vision_structured.summary,            # "15 cardboard shipping boxes detected"
+                "confidence": vision_structured.confidence,      # "high"
+                "search_query": vision_structured.search_query,  # "cardboard shipping boxes warehouse"
                 "timestamp": asyncio.get_event_loop().time()
             })
             

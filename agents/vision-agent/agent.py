@@ -41,12 +41,12 @@ def analyze_image(image_bytes: bytes, query: str = "Write code to count the exac
         config=types.GenerateContentConfig(
             temperature=0,
             # CODELAB STEP 1: Uncomment to enable reasoning
-            # thinking_config=types.ThinkingConfig(
-            #     thinking_level="MEDIUM",  # Valid: "MINIMAL", "LOW", "MEDIUM", "HIGH"
-            #     include_thoughts=False    # Set to True for debugging
-            # ),
+            thinking_config=types.ThinkingConfig(
+                thinking_level="MEDIUM",  # Valid: "MINIMAL", "LOW", "MEDIUM", "HIGH"
+                include_thoughts=False    # Set to True for debugging
+            ),
             # CODELAB STEP 2: Uncomment to enable code execution
-            # tools=[types.Tool(code_execution=types.ToolCodeExecution)]
+            tools=[types.Tool(code_execution=types.ToolCodeExecution)]
         ),
     )
 
