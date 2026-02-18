@@ -185,10 +185,26 @@ if [ -n "$PROJECT" ]; then
     export GOOGLE_CLOUD_PROJECT=$PROJECT
 else
     echo "❌"
-    preflight_fail "No GCP project configured" \
-        "A GCP project must be set so this script knows where to provision resources." \
-        "Run:  gcloud config set project YOUR_PROJECT_ID
-   Replace YOUR_PROJECT_ID with your actual project ID (e.g. my-project-123)."
+    echo ""
+    echo "   No GCP project is set. Please enter your Project ID to continue."
+    echo "   (Find it at: https://console.cloud.google.com/)"
+    echo ""
+    read -p "   Enter your GCP Project ID: " PROJECT_INPUT
+    if [ -z "$PROJECT_INPUT" ]; then
+        preflight_fail "No GCP project configured" \
+            "A GCP project must be set so this script knows where to provision resources." \
+            "Run:  gcloud config set project YOUR_PROJECT_ID"
+    fi
+    gcloud config set project "$PROJECT_INPUT" 2>/dev/null
+    PROJECT=$(gcloud config get-value project 2>/dev/null)
+    if [ -n "$PROJECT" ]; then
+        echo "   ✅ Project set to: $PROJECT"
+        export GOOGLE_CLOUD_PROJECT=$PROJECT
+    else
+        preflight_fail "Failed to set GCP project" \
+            "Could not set project to '$PROJECT_INPUT'." \
+            "Run:  gcloud config set project YOUR_PROJECT_ID"
+    fi
 fi
 
 # Check 4: Python 3
@@ -414,6 +430,52 @@ if [ "$SKIP_INFRA_SETUP" = false ]; then
         echo "✅ Cloned successfully to ./easy-alloydb-setup/"
     fi
 
+    # Patch main.py to write a completion-signal file (idempotent — safe on every run)
+    python3 -c "
+import os, sys
+script_dir = sys.argv[1]
+main_py = os.path.join(script_dir, 'easy-alloydb-setup', 'main.py')
+with open(main_py, 'r') as f:
+    src = f.read()
+
+if 'ALLOYDB_STATUS_FILE' not in src:
+    # Add import os after import json
+    src = src.replace('import json\n', 'import json\nimport os\n', 1)
+
+    # Inject file-write after both places summary is set (success + benign-error)
+    target = \"deployments[deploy_id]['summary'] = generate_deployment_summary(project, region, cluster, instance)\"
+    inject = '''
+        _sf = os.environ.get(\"ALLOYDB_STATUS_FILE\")
+        if _sf:
+            try:
+                with open(_sf, 'w') as _f:
+                    import json as _j
+                    _j.dump({'status': deployments[deploy_id]['status'],
+                             'summary': deployments[deploy_id]['summary']}, _f)
+            except Exception:
+                pass'''
+    src = src.replace(target, target + inject)
+
+    # Inject error-only write for the hard-failure branch (no summary)
+    error_target = \"deployments[deploy_id]['logs'].append(f\\\"\\\\nERROR: Script exited with code {process.returncode}\\\\n\\\")\"
+    error_inject = '''
+        _sf = os.environ.get(\"ALLOYDB_STATUS_FILE\")
+        if _sf:
+            try:
+                with open(_sf, 'w') as _f:
+                    import json as _j
+                    _j.dump({'status': 'error', 'summary': None}, _f)
+            except Exception:
+                pass'''
+    src = src.replace(error_target, error_target + error_inject)
+
+    with open(main_py, 'w') as f:
+        f.write(src)
+    print('   \u2705 Patched easy-alloydb-setup/main.py')
+else:
+    print('   \u2705 easy-alloydb-setup/main.py already patched')
+" "$SCRIPT_DIR"
+
     echo ""
     echo "🌐 Starting infrastructure setup UI..."
     echo ""
@@ -440,8 +502,10 @@ if [ "$SKIP_INFRA_SETUP" = false ]; then
 
     # Start the Flask UI in the background so this script can keep running
     mkdir -p "$SCRIPT_DIR/logs"
+    STATUS_FILE="$SCRIPT_DIR/logs/alloydb-deploy-complete.json"
+    rm -f "$STATUS_FILE"
     cd "$SCRIPT_DIR/easy-alloydb-setup"
-    sh run.sh > "$SCRIPT_DIR/logs/alloydb-setup-ui.log" 2>&1 &
+    ALLOYDB_STATUS_FILE="$STATUS_FILE" sh run.sh > "$SCRIPT_DIR/logs/alloydb-setup-ui.log" 2>&1 &
     FLASK_PID=$!
     cd "$SCRIPT_DIR"
 
@@ -465,32 +529,45 @@ if [ "$SKIP_INFRA_SETUP" = false ]; then
     fi
     echo ""
 
-    # Poll gcloud every 30s until an AlloyDB instance reaches READY state
-    echo "⏳ Monitoring for AlloyDB to finish provisioning..."
-    echo "   (checking every 30 seconds — this usually takes ~15 minutes)"
+    # Monitor deployment via the local status file written by the patched main.py
+    echo "⏳ Monitoring deployment — checking every 5 seconds..."
+    echo "   (provisioning typically takes ~15 minutes)"
     echo ""
 
     POLL_COUNT=0
-    MAX_POLLS=70   # 35 minutes max
+    MAX_POLLS=420  # 35 minutes at 5s intervals
     ALLOYDB_READY=0
 
     while [ $POLL_COUNT -lt $MAX_POLLS ]; do
-        READY_INSTANCE=$(gcloud alloydb instances list \
-            --filter="state:READY" \
-            --format="value(name)" 2>/dev/null | head -n 1)
+        if [ -f "$STATUS_FILE" ]; then
+            DEPLOY_STATUS=$(python3 -c \
+                "import json; print(json.load(open('$STATUS_FILE')).get('status',''))" 2>/dev/null)
 
-        if [ -n "$READY_INSTANCE" ]; then
+            if [ "$DEPLOY_STATUS" = "error" ]; then
+                echo ""
+                echo "❌ AlloyDB deployment failed."
+                echo "   Check the Web Preview UI for error details, fix the issue, and re-run: sh setup.sh"
+                PGID=$(ps -o pgid= -p $FLASK_PID 2>/dev/null | tr -d ' ')
+                [ -n "$PGID" ] && kill -- -"$PGID" 2>/dev/null || true
+                pkill -f "easy-alloydb-setup" 2>/dev/null || true
+                exit 1
+            fi
+
             ALLOYDB_READY=1
+            ALLOYDB_CLUSTER=$(python3 -c \
+                "import json; print(json.load(open('$STATUS_FILE'))['summary']['connection']['cluster_name'])" 2>/dev/null)
+            ALLOYDB_INSTANCE=$(python3 -c \
+                "import json; print(json.load(open('$STATUS_FILE'))['summary']['connection']['instance_name'])" 2>/dev/null)
+            ALLOYDB_REGION=$(python3 -c \
+                "import json; print(json.load(open('$STATUS_FILE'))['summary']['connection']['region'])" 2>/dev/null)
             break
         fi
 
         POLL_COUNT=$((POLL_COUNT + 1))
-        MINUTES_ELAPSED=$(( POLL_COUNT / 2 ))
-        SECONDS_ELAPSED=$(( POLL_COUNT * 30 ))
-        if [ $(( SECONDS_ELAPSED % 60 )) -eq 0 ]; then
-            echo "   Still waiting... ${MINUTES_ELAPSED}m elapsed"
+        if [ $(( POLL_COUNT % 12 )) -eq 0 ]; then
+            echo "   Still waiting... $(( POLL_COUNT * 5 / 60 ))m elapsed"
         fi
-        sleep 30
+        sleep 5
     done
 
     # Stop the Flask UI server (kill process group to catch the Python child too)
@@ -503,7 +580,8 @@ if [ "$SKIP_INFRA_SETUP" = false ]; then
 
     echo ""
     if [ $ALLOYDB_READY -eq 1 ]; then
-        echo "✅ AlloyDB instance is READY! Continuing setup automatically..."
+        echo "✅ AlloyDB is READY! Cluster: $ALLOYDB_CLUSTER in $ALLOYDB_REGION"
+        echo "   Continuing setup automatically..."
     else
         echo "⚠️  Timed out waiting for AlloyDB (35 minutes)."
         echo "   If provisioning completed in the UI, setup will continue."
