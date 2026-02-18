@@ -130,14 +130,28 @@ detect_arch() {
 load_env_file || true
 
 # ============================================================================
-# PRE-FLIGHT CHECKS - Run All Validations First
+# PRE-FLIGHT CHECKS - One error at a time, fail fast
 # ============================================================================
 
 echo "🔍 Running pre-flight checks..."
 echo ""
 
-PREFLIGHT_ERRORS=0
-PREFLIGHT_WARNINGS=0
+preflight_fail() {
+    local check="$1"
+    local message="$2"
+    local fix="$3"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "❌  Pre-flight check failed: $check"
+    echo ""
+    echo "   $message"
+    echo ""
+    echo "   Fix:"
+    echo "   $fix"
+    echo ""
+    echo "   Once fixed, re-run: sh setup.sh"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    exit 1
+}
 
 # Check 1: gcloud CLI
 echo -n "Checking gcloud CLI... "
@@ -145,9 +159,9 @@ if command -v gcloud &> /dev/null; then
     echo "✅"
 else
     echo "❌"
-    echo "   Error: gcloud CLI not found"
-    echo "   Install: https://cloud.google.com/sdk/docs/install"
-    PREFLIGHT_ERRORS=$((PREFLIGHT_ERRORS + 1))
+    preflight_fail "gcloud CLI not installed" \
+        "The Google Cloud SDK (gcloud) is required to run this setup." \
+        "Visit https://cloud.google.com/sdk/docs/install and follow the instructions."
 fi
 
 # Check 2: gcloud Authentication
@@ -157,49 +171,13 @@ if [ -n "$ACTIVE_ACCOUNT" ]; then
     echo "✅ ($ACTIVE_ACCOUNT)"
 else
     echo "❌"
-    echo "   Error: Not authenticated with gcloud"
-    echo ""
-    echo "   You must authenticate before continuing."
-    echo "   Run: gcloud auth login"
-    echo ""
-    echo "   This will open a browser to sign in with your Google account."
-    echo "   After signing in, re-run this setup script."
-    echo ""
-    PREFLIGHT_ERRORS=$((PREFLIGHT_ERRORS + 1))
+    preflight_fail "Not authenticated with gcloud" \
+        "You must sign in before this script can access Google Cloud." \
+        "Run:  gcloud auth login
+   This opens a browser to sign in. After signing in, re-run this script."
 fi
 
-# Check 3: Python 3
-echo -n "Checking Python 3... "
-if command -v python3 &> /dev/null; then
-    PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
-    echo "✅ ($PYTHON_VERSION)"
-else
-    echo "❌"
-    echo "   Error: python3 not found"
-    PREFLIGHT_ERRORS=$((PREFLIGHT_ERRORS + 1))
-fi
-
-# Check 4: pip3
-echo -n "Checking pip3... "
-if command -v pip3 &> /dev/null; then
-    echo "✅"
-else
-    echo "⚠️ "
-    echo "   Warning: pip3 not found, will attempt to use pip"
-    PREFLIGHT_WARNINGS=$((PREFLIGHT_WARNINGS + 1))
-fi
-
-# Check 5: Git
-echo -n "Checking git... "
-if command -v git &> /dev/null; then
-    echo "✅"
-else
-    echo "❌"
-    echo "   Error: git not found (needed to clone AlloyDB setup tool)"
-    PREFLIGHT_ERRORS=$((PREFLIGHT_ERRORS + 1))
-fi
-
-# Check 6: GCP Project
+# Check 3: GCP Project
 echo -n "Checking GCP project... "
 PROJECT=$(gcloud config get-value project 2>/dev/null)
 if [ -n "$PROJECT" ]; then
@@ -207,71 +185,85 @@ if [ -n "$PROJECT" ]; then
     export GOOGLE_CLOUD_PROJECT=$PROJECT
 else
     echo "❌"
-    echo "   Error: No GCP project configured"
-    echo "   Run: gcloud config set project YOUR_PROJECT_ID"
-    PREFLIGHT_ERRORS=$((PREFLIGHT_ERRORS + 1))
+    preflight_fail "No GCP project configured" \
+        "A GCP project must be set so this script knows where to provision resources." \
+        "Run:  gcloud config set project YOUR_PROJECT_ID
+   Replace YOUR_PROJECT_ID with your actual project ID (e.g. my-project-123)."
 fi
 
-# Check 7: Billing (if project exists and authenticated)
-if [ -n "$PROJECT" ] && [ -n "$ACTIVE_ACCOUNT" ]; then
-    echo -n "Checking billing... "
-    BILLING_ENABLED=$(gcloud beta billing projects describe "$PROJECT" --format="value(billingEnabled)" 2>/dev/null || echo "false")
-    if [ "$BILLING_ENABLED" = "True" ] || [ "$BILLING_ENABLED" = "true" ]; then
+# Check 4: Python 3
+echo -n "Checking Python 3... "
+if command -v python3 &> /dev/null; then
+    PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+    echo "✅ ($PYTHON_VERSION)"
+else
+    echo "❌"
+    preflight_fail "Python 3 not found" \
+        "Python 3 is required to run the database seeding scripts." \
+        "Install Python 3 from https://www.python.org/downloads/ or via your package manager."
+fi
+
+# Check 5: pip3 (warning only - not fatal)
+echo -n "Checking pip3... "
+if command -v pip3 &> /dev/null; then
+    echo "✅"
+else
+    echo "⚠️  (not found - will fall back to pip)"
+fi
+
+# Check 6: Git
+echo -n "Checking git... "
+if command -v git &> /dev/null; then
+    echo "✅"
+else
+    echo "❌"
+    preflight_fail "git not found" \
+        "git is required to clone the AlloyDB infrastructure setup tool." \
+        "Install git from https://git-scm.com/downloads or via your package manager."
+fi
+
+# Check 7: Billing (warning only - not fatal)
+echo -n "Checking billing... "
+BILLING_ENABLED=$(gcloud beta billing projects describe "$PROJECT" --format="value(billingEnabled)" 2>/dev/null || echo "false")
+if [ "$BILLING_ENABLED" = "True" ] || [ "$BILLING_ENABLED" = "true" ]; then
+    echo "✅"
+else
+    echo "⚠️  (billing may not be enabled)"
+    echo "   Enable at: https://console.cloud.google.com/billing/linkedaccount?project=$PROJECT"
+fi
+
+# Check 8: Required APIs
+echo ""
+echo "Checking required APIs..."
+REQUIRED_APIS=("aiplatform.googleapis.com" "alloydb.googleapis.com" "compute.googleapis.com" "servicenetworking.googleapis.com")
+MISSING_APIS=()
+
+for api in "${REQUIRED_APIS[@]}"; do
+    echo -n "  - $api... "
+    if gcloud services list --enabled --filter="name:$api" --format="value(name)" 2>/dev/null | grep -q "$api"; then
         echo "✅"
     else
-        echo "⚠️ "
-        echo "   Warning: Billing may not be enabled"
-        echo "   Enable at: https://console.cloud.google.com/billing/linkedaccount?project=$PROJECT"
-        PREFLIGHT_WARNINGS=$((PREFLIGHT_WARNINGS + 1))
+        echo "❌"
+        MISSING_APIS+=("$api")
     fi
-fi
-
-# Check 8: Required APIs (only if authenticated)
-if [ -n "$ACTIVE_ACCOUNT" ]; then
-    echo ""
-    echo "Checking required APIs..."
-    REQUIRED_APIS=("aiplatform.googleapis.com" "alloydb.googleapis.com" "compute.googleapis.com" "servicenetworking.googleapis.com")
-    MISSING_APIS=()
-
-    for api in "${REQUIRED_APIS[@]}"; do
-        echo -n "  - $api... "
-        if gcloud services list --enabled --filter="name:$api" --format="value(name)" 2>/dev/null | grep -q "$api"; then
-            echo "✅"
-        else
-            echo "❌"
-            MISSING_APIS+=("$api")
-        fi
-    done
-else
-    echo ""
-    echo "⚠️  Skipping API checks (authentication required)"
-    MISSING_APIS=()
-fi
+done
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-if [ $PREFLIGHT_ERRORS -gt 0 ]; then
-    echo "❌ Pre-flight check failed: $PREFLIGHT_ERRORS error(s)"
-    echo "   Please fix the errors above and re-run setup"
-    exit 1
-elif [ $PREFLIGHT_WARNINGS -gt 0 ] || [ ${#MISSING_APIS[@]} -gt 0 ]; then
-    echo "⚠️  Pre-flight check completed with warnings"
-    if [ ${#MISSING_APIS[@]} -gt 0 ]; then
-        echo ""
-        echo "Missing APIs: ${MISSING_APIS[@]}"
-        echo ""
-        read -p "Enable missing APIs automatically? (y/N): " -n 1 -r
-        echo ""
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            echo "Enabling APIs..."
-            for api in "${MISSING_APIS[@]}"; do
-                echo "  Enabling $api..."
-                gcloud services enable "$api" --quiet
-            done
-            echo "✅ All APIs enabled"
-        else
-            echo "⚠️  Continuing without enabling APIs (may fail later)"
-        fi
+if [ ${#MISSING_APIS[@]} -gt 0 ]; then
+    echo "⚠️  Missing APIs detected: ${MISSING_APIS[*]}"
+    echo ""
+    read -p "Enable missing APIs automatically? (y/N): " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "Enabling APIs..."
+        for api in "${MISSING_APIS[@]}"; do
+            echo "  Enabling $api..."
+            gcloud services enable "$api" --quiet
+        done
+        echo "✅ All APIs enabled"
+    else
+        echo "⚠️  Continuing without enabling APIs (may fail later)"
     fi
 else
     echo "✅ All pre-flight checks passed!"

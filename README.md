@@ -40,10 +40,10 @@ git clone https://github.com/MohitBhimrajka/visual-commerce-gemini-3-alloydb.git
 cd visual-commerce-gemini-3-alloydb
 
 # 2. Run setup (provisions infrastructure + seeds database)
-./setup.sh
+sh setup.sh
 
 # 3. Start all services
-./run.sh
+sh run.sh
 ```
 
 > **📌 Note:** All commands assume you're in the repo root (`visual-commerce-gemini-3-alloydb/`). If commands fail with "No such file", verify your location with `pwd` and navigate back to the repo.
@@ -82,7 +82,7 @@ visual-commerce-gemini-3-alloydb/
 
 ## What Each Command Does
 
-### `./setup.sh`
+### `sh setup.sh`
 
 1. **Validates environment** - Checks gcloud, APIs, project settings
 2. **Configures AlloyDB** - Prompts for Public IP and authorized networks (Cloud Shell auto-detects, local machine prompts for security settings)
@@ -90,7 +90,7 @@ visual-commerce-gemini-3-alloydb/
 4. **Seeds database with real embeddings** - Populates inventory with sample data using Google Gen AI SDK and text-embedding-005 (~10 seconds with parallel embedding generation)
 5. **Creates ScaNN index** - Builds high-performance vector search index
 
-### `./run.sh`
+### `sh run.sh`
 
 1. **Starts AlloyDB Auth Proxy** - Creates secure tunnel to database (auto-detects Public IP for Cloud Shell or local)
 2. **Launches Vision Agent** - Port 8081 (Gemini 3 Flash LOW thinking + Gemini 2.5 Flash Lite query generation)
@@ -169,12 +169,20 @@ curl http://localhost:8080/api/health
 
 ## Cleanup
 
-To avoid charges, delete the AlloyDB cluster:
+To avoid charges, run the cleanup script:
 
 ```bash
-# Replace with your cluster name (check .env for ALLOYDB_CLUSTER)
+sh cleanup.sh
+```
+
+This stops the Auth Proxy, deletes the AlloyDB cluster, removes any deployed Cloud Run services, and optionally removes local files (binary, logs, `.env`).
+
+If you prefer a manual approach:
+
+```bash
+# Replace with your cluster name (check .env for ALLOYDB_CLUSTER and ALLOYDB_REGION)
 gcloud alloydb clusters delete YOUR_CLUSTER_NAME \
-  --region=us-central1 \
+  --region=YOUR_REGION \
   --force
 ```
 

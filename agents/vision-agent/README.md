@@ -64,7 +64,7 @@ for part in response.candidates[0].content.parts:
 
 ```bash
 cd ../..
-./run.sh
+sh run.sh
 ```
 
 ### Manually

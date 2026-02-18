@@ -67,7 +67,7 @@ Each part has a randomly generated 768-dimensional embedding vector for demo pur
 The master setup script handles everything:
 ```bash
 cd ../..
-./setup.sh
+sh setup.sh
 ```
 
 ### Manual
@@ -134,7 +134,7 @@ export DB_PASS='your-password-from-setup-ui'
 ps aux | grep alloydb-auth-proxy
 ```
 
-If not running, start it via `./run.sh` or manually.
+If not running, start it via `sh run.sh` or manually.
 
 ### Connection refused
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Autonomous Supply Chain - Master Run Script
 # Starts all services: Auth Proxy, Vision Agent, Supplier Agent, Control Tower
-# Usage: ./run.sh
+# Usage: sh run.sh
 
 set -e
 
@@ -108,7 +108,7 @@ PROXY_BINARY="$SCRIPT_DIR/alloydb-auth-proxy"
 
 if [ ! -f "$PROXY_BINARY" ]; then
     echo "❌ Auth Proxy binary not found"
-    echo "   Run './setup.sh' first to download it"
+    echo "   Run 'sh setup.sh' first to download it"
     exit 1
 fi
 
@@ -123,7 +123,7 @@ else
     
     if [ -z "$INSTANCES" ]; then
         echo "❌ No AlloyDB instance found"
-        echo "   Run './setup.sh' first to provision infrastructure"
+        echo "   Run 'sh setup.sh' first to provision infrastructure"
         exit 1
     fi
     
@@ -136,7 +136,7 @@ else
         # Multiple instances but no .env preference - use first one
         INSTANCE_URI=$(echo "$INSTANCES" | head -n 1)
         echo "⚠️  Multiple instances found, using first one"
-        echo "   Run './setup.sh' to select and save preference to .env"
+        echo "   Run 'sh setup.sh' to select and save preference to .env"
     fi
 fi
 
@@ -206,7 +206,7 @@ if ! pgrep -f "alloydb-auth-proxy" > /dev/null; then
         if grep -q "oauth2.*invalid token" "$SCRIPT_DIR/logs/proxy.log" 2>/dev/null; then
             echo "⚠️  Auth Proxy started but has authentication issues"
             echo "   Run: gcloud auth application-default login"
-            echo "   Then restart: ./run.sh"
+            echo "   Then restart: sh run.sh"
         else
             echo "✅ Auth Proxy started"
         fi
@@ -226,11 +226,9 @@ echo "👁️  Step 2/4: Starting Vision Agent (API Key mode)..."
 
 cd "$SCRIPT_DIR/agents/vision-agent"
 
-# Install dependencies if needed
-if [ ! -d "venv" ]; then
-    echo "   Installing dependencies..."
-    pip install -q -r requirements.txt
-fi
+# Install dependencies
+echo "   Installing dependencies..."
+pip install -q -r requirements.txt
 
 # Start Vision Agent
 python3 -m uvicorn main:app --host 0.0.0.0 --port 8081 > "$SCRIPT_DIR/logs/vision-agent.log" 2>&1 &
@@ -238,7 +236,7 @@ VISION_PID=$!
 
 # Health check with retries (Vision Agent takes longer to initialize)
 RETRY_COUNT=0
-MAX_RETRIES=10
+MAX_RETRIES=20
 VISION_HEALTHY=false
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
@@ -268,11 +266,9 @@ echo "🧠 Step 3/4: Starting Supplier Agent..."
 
 cd "$SCRIPT_DIR/agents/supplier-agent"
 
-# Install dependencies if needed
-if [ ! -d "venv" ]; then
-    echo "   Installing dependencies..."
-    pip install -q -r requirements.txt
-fi
+# Install dependencies
+echo "   Installing dependencies..."
+pip install -q -r requirements.txt
 
 # Start Supplier Agent
 python3 -m uvicorn main:app --host 0.0.0.0 --port 8082 > "$SCRIPT_DIR/logs/supplier-agent.log" 2>&1 &
@@ -280,7 +276,7 @@ SUPPLIER_PID=$!
 
 # Health check with retries
 RETRY_COUNT=0
-MAX_RETRIES=10
+MAX_RETRIES=20
 SUPPLIER_HEALTHY=false
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
@@ -310,11 +306,9 @@ echo "🎨 Step 4/4: Starting Control Tower..."
 
 cd "$SCRIPT_DIR/frontend"
 
-# Install dependencies if needed
-if [ ! -d "venv" ]; then
-    echo "   Installing dependencies..."
-    pip install -q -r requirements.txt
-fi
+# Install dependencies
+echo "   Installing dependencies..."
+pip install -q -r requirements.txt
 
 # Start Frontend
 python3 -m uvicorn app:app --host 0.0.0.0 --port 8080 > "$SCRIPT_DIR/logs/frontend.log" 2>&1 &
@@ -322,7 +316,7 @@ FRONTEND_PID=$!
 
 # Health check with retries
 RETRY_COUNT=0
-MAX_RETRIES=10
+MAX_RETRIES=20
 FRONTEND_HEALTHY=false
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do

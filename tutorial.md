@@ -20,10 +20,10 @@ The Vision Agent needs a Gemini API key to access Gemini 3 Flash with Code Execu
 In the Cloud Shell terminal at the bottom of your screen, run:
 
 ```bash
-./setup.sh
+sh setup.sh
 ```
 
-> **Note:** If the script reports "Not authenticated with gcloud", run `gcloud auth login` first, then re-run `./setup.sh`
+> **Note:** If the script reports "Not authenticated with gcloud", run `gcloud auth login` first, then re-run `sh setup.sh`
 
 **What happens:**
 
@@ -39,7 +39,7 @@ In the Cloud Shell terminal at the bottom of your screen, run:
 2. When asked to clone the setup tool → Press Y to confirm
 
 **If you need to restart:**
-- If the script gets stuck or fails, you can safely restart by running `./setup.sh` again
+- If the script gets stuck or fails, you can safely restart by running `sh setup.sh` again
 - The script will detect existing AlloyDB instances and skip provisioning
 - You won't need to redeploy infrastructure - it picks up where you left off
 
@@ -47,7 +47,7 @@ In the Cloud Shell terminal at the bottom of your screen, run:
 If you see "Bus error" when starting the Auth Proxy:
 ```bash
 rm alloydb-auth-proxy
-./setup.sh
+sh setup.sh
 ```
 The script will re-download the correct binary for your system.
 
@@ -190,7 +190,7 @@ cp agents/supplier-agent/agent_card_skeleton.json agents/supplier-agent/agent_ca
 Time to bring everything online! Run the master start script:
 
 ```bash
-./run.sh
+sh run.sh
 ```
 
 **This starts 4 services:**

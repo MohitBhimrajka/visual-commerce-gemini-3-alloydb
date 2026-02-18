@@ -55,7 +55,7 @@ All agents expose:
 Use the master run script:
 ```bash
 cd ../..
-./run.sh
+sh run.sh
 ```
 
 ### Manual Start
