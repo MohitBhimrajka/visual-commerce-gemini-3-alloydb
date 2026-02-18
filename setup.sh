@@ -64,6 +64,25 @@ update_env_key() {
     echo "${key}=${value}" >> "$env_file"
 }
 
+# Return one READY AlloyDB instance URI per line using gcloud JSON + Python.
+# Uses a 20s subprocess timeout so it never hangs the polling loop.
+check_ready_instances() {
+    python3 -c "
+import subprocess, json, sys
+try:
+    r = subprocess.run(
+        ['gcloud', 'alloydb', 'instances', 'list', '--format=json'],
+        capture_output=True, text=True, timeout=20)
+    if r.returncode != 0:
+        sys.exit(1)
+    for i in json.loads(r.stdout or '[]'):
+        if i.get('state') == 'READY':
+            print(i['name'])
+except Exception:
+    sys.exit(1)
+" 2>/dev/null
+}
+
 # Generate .env file with all configuration
 generate_env_file() {
     local project=$1
@@ -450,53 +469,7 @@ if [ "$SKIP_INFRA_SETUP" = false ]; then
         echo "✅ Cloned successfully to ./easy-alloydb-setup/"
     fi
 
-    # Patch main.py to write a completion-signal file (idempotent — safe on every run)
-    python3 -c "
-import os, sys
-script_dir = sys.argv[1]
-main_py = os.path.join(script_dir, 'easy-alloydb-setup', 'main.py')
-with open(main_py, 'r') as f:
-    src = f.read()
-
-if 'ALLOYDB_STATUS_FILE' not in src:
-    # Add import os after import json
-    src = src.replace('import json\n', 'import json\nimport os\n', 1)
-
-    # Inject file-write after both places summary is set (success + benign-error).
-    # Always write status='done' here: if a summary exists, AlloyDB was provisioned.
-    # The benign-error branch sets deployments status='error' but the cluster IS ready.
-    target = \"deployments[deploy_id]['summary'] = generate_deployment_summary(project, region, cluster, instance)\"
-    inject = '''
-        _sf = os.environ.get(\"ALLOYDB_STATUS_FILE\")
-        if _sf:
-            try:
-                with open(_sf, 'w') as _f:
-                    import json as _j
-                    _j.dump({'status': 'done',
-                             'summary': deployments[deploy_id]['summary']}, _f)
-            except Exception:
-                pass'''
-    src = src.replace(target, target + inject)
-
-    # Inject error-only write for the hard-failure branch (no summary)
-    error_target = \"deployments[deploy_id]['logs'].append(f\\\"\\\\nERROR: Script exited with code {process.returncode}\\\\n\\\")\"
-    error_inject = '''
-        _sf = os.environ.get(\"ALLOYDB_STATUS_FILE\")
-        if _sf:
-            try:
-                with open(_sf, 'w') as _f:
-                    import json as _j
-                    _j.dump({'status': 'error', 'summary': None}, _f)
-            except Exception:
-                pass'''
-    src = src.replace(error_target, error_target + error_inject)
-
-    with open(main_py, 'w') as f:
-        f.write(src)
-    print('   \u2705 Patched easy-alloydb-setup/main.py')
-else:
-    print('   \u2705 easy-alloydb-setup/main.py already patched')
-" "$SCRIPT_DIR"
+    chmod +x "$SCRIPT_DIR/easy-alloydb-setup/create_alloydb.sh" 2>/dev/null || true
 
     echo ""
     echo "🌐 Starting infrastructure setup UI..."
@@ -522,13 +495,17 @@ else:
     echo ""
     read -p "Press Enter to launch the setup UI..."
 
-    # Start the Flask UI in the background so this script can keep running
+    # Snapshot READY instances now so we can detect the NEW one after provisioning
+    echo "📸 Snapshotting existing AlloyDB instances before provisioning..."
+    BEFORE_INSTANCES=$(check_ready_instances 2>/dev/null || echo "")
+
+    # Start the Flask UI in the background — disowned immediately so bash never
+    # prints "Terminated" when we kill it later
     mkdir -p "$SCRIPT_DIR/logs"
-    STATUS_FILE="$SCRIPT_DIR/logs/alloydb-deploy-complete.json"
-    rm -f "$STATUS_FILE"
     cd "$SCRIPT_DIR/easy-alloydb-setup"
-    ALLOYDB_STATUS_FILE="$STATUS_FILE" sh run.sh > "$SCRIPT_DIR/logs/alloydb-setup-ui.log" 2>&1 &
+    sh run.sh > "$SCRIPT_DIR/logs/alloydb-setup-ui.log" 2>&1 &
     FLASK_PID=$!
+    disown "$FLASK_PID" 2>/dev/null || true
     cd "$SCRIPT_DIR"
 
     # Wait for port 8080 to be accepting connections (up to 15s)
@@ -551,61 +528,66 @@ else:
     fi
     echo ""
 
-    # Monitor deployment via the local status file written by the patched main.py
-    echo "⏳ Monitoring deployment — checking every 5 seconds..."
-    echo "   (provisioning typically takes ~15 minutes)"
+    # Poll gcloud every 30s for a new READY instance.
+    # Each poll prints a heartbeat line to prevent Cloud Shell idle timeout.
+    echo "⏳ Monitoring for new AlloyDB instance (checking every 30 seconds)..."
+    echo "   Provisioning typically takes ~15 minutes."
+    echo "   If this terminal disconnects, re-run: sh setup.sh"
     echo ""
 
     POLL_COUNT=0
-    MAX_POLLS=420  # 35 minutes at 5s intervals
+    MAX_POLLS=70   # 35 minutes at 30s intervals
     ALLOYDB_READY=0
 
     while [ $POLL_COUNT -lt $MAX_POLLS ]; do
-        if [ -f "$STATUS_FILE" ]; then
-            DEPLOY_STATUS=$(python3 -c \
-                "import json; print(json.load(open('$STATUS_FILE')).get('status',''))" 2>/dev/null)
+        ELAPSED_MIN=$(( POLL_COUNT * 30 / 60 ))
+        ELAPSED_SEC=$(( (POLL_COUNT * 30) % 60 ))
+        printf "   [%02d:%02d] Checking for new READY instance...\n" "$ELAPSED_MIN" "$ELAPSED_SEC"
 
-            if [ "$DEPLOY_STATUS" = "error" ]; then
+        CURRENT_INSTANCES=$(check_ready_instances 2>/dev/null || echo "")
+
+        # Detect genuinely new instances by set-difference with the baseline snapshot
+        NEW_INSTANCE=$(python3 -c "
+import sys
+before  = set(filter(None, '''$BEFORE_INSTANCES'''.strip().splitlines()))
+current = set(filter(None, '''$CURRENT_INSTANCES'''.strip().splitlines()))
+new = current - before
+if new:
+    print(sorted(new)[0])
+" 2>/dev/null)
+
+        if [ -n "$NEW_INSTANCE" ]; then
+            echo ""
+            parse_instance_uri "$NEW_INSTANCE"
+            echo "✅ New AlloyDB instance detected!"
+            echo ""
+            echo "   Cluster:  $ALLOYDB_CLUSTER"
+            echo "   Instance: $ALLOYDB_INSTANCE"
+            echo "   Region:   $ALLOYDB_REGION"
+            echo ""
+            read -p "Continue setup with this instance? (Y/n): " -n 1 -r
+            echo ""
+            if [[ $REPLY =~ ^[Nn]$ ]]; then
+                echo "   OK — continuing to wait for a different instance..."
                 echo ""
-                echo "❌ AlloyDB deployment failed."
-                echo "   Check the Web Preview UI for error details, fix the issue, and re-run: sh setup.sh"
-                disown "$FLASK_PID" 2>/dev/null || true
-                kill "$FLASK_PID" 2>/dev/null || true
-                sleep 1
-                pkill -f "create_alloydb.sh" 2>/dev/null || true
-                pkill -f "easy-alloydb-setup" 2>/dev/null || true
-                exit 1
+            else
+                ALLOYDB_READY=1
+                # Checkpoint 2: persist cluster details immediately
+                update_env_key "ALLOYDB_CLUSTER"  "$ALLOYDB_CLUSTER"
+                update_env_key "ALLOYDB_INSTANCE" "$ALLOYDB_INSTANCE"
+                update_env_key "ALLOYDB_REGION"   "$ALLOYDB_REGION"
+                update_env_key "ALLOYDB_PROJECT"  "$PROJECT"
+                break
             fi
-
-            ALLOYDB_READY=1
-            ALLOYDB_CLUSTER=$(python3 -c \
-                "import json; print(json.load(open('$STATUS_FILE'))['summary']['connection']['cluster_name'])" 2>/dev/null)
-            ALLOYDB_INSTANCE=$(python3 -c \
-                "import json; print(json.load(open('$STATUS_FILE'))['summary']['connection']['instance_name'])" 2>/dev/null)
-            ALLOYDB_REGION=$(python3 -c \
-                "import json; print(json.load(open('$STATUS_FILE'))['summary']['connection']['region'])" 2>/dev/null)
-            # Checkpoint 2: persist cluster details immediately so cleanup.sh can find
-            # the cluster and re-runs skip provisioning even if setup is killed here
-            update_env_key "ALLOYDB_CLUSTER"  "$ALLOYDB_CLUSTER"
-            update_env_key "ALLOYDB_INSTANCE" "$ALLOYDB_INSTANCE"
-            update_env_key "ALLOYDB_REGION"   "$ALLOYDB_REGION"
-            update_env_key "ALLOYDB_PROJECT"  "$PROJECT"
-            break
         fi
 
         POLL_COUNT=$((POLL_COUNT + 1))
-        if [ $(( POLL_COUNT % 12 )) -eq 0 ]; then
-            echo "   Still waiting... $(( POLL_COUNT * 5 / 60 ))m elapsed"
-        fi
-        sleep 5
+        sleep 30
     done
 
-    # Stop the Flask UI server — disown first so bash doesn't print "Terminated",
-    # then kill the process directly (not by process group, which would include setup.sh itself)
-    disown "$FLASK_PID" 2>/dev/null || true
+    # Stop the Flask UI server
     kill "$FLASK_PID" 2>/dev/null || true
     sleep 1
-    pkill -f "create_alloydb.sh" 2>/dev/null || true
     pkill -f "easy-alloydb-setup" 2>/dev/null || true
     sleep 1
 
@@ -615,8 +597,7 @@ else:
         echo "   Continuing setup automatically..."
     else
         echo "⚠️  Timed out waiting for AlloyDB (35 minutes)."
-        echo "   If provisioning completed in the UI, setup will continue."
-        echo "   If not, re-run 'sh setup.sh' once provisioning finishes."
+        echo "   If provisioning completed in the UI, re-run: sh setup.sh"
     fi
     echo ""
     echo "✅ Infrastructure provisioning complete!"
