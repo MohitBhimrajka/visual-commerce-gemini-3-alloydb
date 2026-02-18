@@ -836,6 +836,9 @@ else
                     --format="value(publicIpAddress)" 2>/dev/null)
                 if [ -n "$PUBLIC_IP" ]; then
                     echo "   ✅ Public IP assigned: $PUBLIC_IP"
+                    echo "   ⏳ Waiting 60s for AlloyDB API to register the new IP..."
+                    sleep 60
+                    echo "   ✅ Propagation wait complete"
                     break
                 fi
                 echo -n "."
@@ -1094,8 +1097,32 @@ if [ $? -eq 0 ]; then
 else
     echo ""
     echo "❌ Database seeding failed"
-    echo "   Check that DB_PASS is correct and Auth Proxy is running"
-    exit 1
+    if grep -q "does not have IP of type" "$SCRIPT_DIR/logs/proxy.log" 2>/dev/null; then
+        echo ""
+        echo "⚠️  The AlloyDB public IP hasn't fully propagated to the API yet."
+        echo "   Restarting Auth Proxy and retrying in 60 seconds..."
+        echo ""
+        kill "$(pgrep -f alloydb-auth-proxy)" 2>/dev/null || true
+        sleep 60
+        if [ -n "$USE_PUBLIC_IP_FLAG" ]; then
+            nohup "$PROXY_BINARY" "$INSTANCE_URI" --public-ip > "$SCRIPT_DIR/logs/proxy.log" 2>&1 &
+        else
+            nohup "$PROXY_BINARY" "$INSTANCE_URI" > "$SCRIPT_DIR/logs/proxy.log" 2>&1 &
+        fi
+        sleep 5
+        echo "Retrying database seed..."
+        cd "$SCRIPT_DIR/database"
+        python3 seed.py
+        if [ $? -ne 0 ]; then
+            echo ""
+            echo "❌ Retry also failed. Re-run 'sh setup.sh' in a few minutes."
+            exit 1
+        fi
+        cd "$SCRIPT_DIR"
+    else
+        echo "   Check that DB_PASS is correct and Auth Proxy is running"
+        exit 1
+    fi
 fi
 
 cd "$SCRIPT_DIR"
