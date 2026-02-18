@@ -390,7 +390,7 @@ echo ""
 
 # First check if AlloyDB instance already exists
 echo "🔍 Checking for existing AlloyDB instance..."
-EXISTING_INSTANCES=$(gcloud alloydb instances list --filter="state:READY" --format="value(name)" 2>/dev/null)
+EXISTING_INSTANCES=$(gcloud alloydb instances list --filter="state:READY" --format="value(name)" 2>/dev/null || true)
 
 if [ -n "$EXISTING_INSTANCES" ]; then
     INSTANCE_COUNT=$(echo "$EXISTING_INSTANCES" | wc -l | tr -d ' ')
