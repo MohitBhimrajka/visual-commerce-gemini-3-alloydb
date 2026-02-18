@@ -942,9 +942,10 @@ else
                     --format="value(publicIpAddress)" 2>/dev/null)
                 if [ -n "$PUBLIC_IP" ]; then
                     echo "   ✅ Public IP assigned: $PUBLIC_IP"
-                    echo "   ⏳ Waiting 60s for AlloyDB API to register the new IP..."
-                    sleep 60
+                    echo "   ⏳ Waiting 120s for AlloyDB API to register the new IP..."
+                    sleep 120
                     echo "   ✅ Propagation wait complete"
+                    PUBLIC_IP_NEWLY_ENABLED=true
                     break
                 fi
                 echo -n "."
@@ -1181,6 +1182,35 @@ echo ""
 echo "🌱 Step 5/5: Seeding database..."
 echo ""
 
+# Probe 127.0.0.1:5432 before seeding — catches a proxy that says "ready" but
+# can't actually forward yet (common when public IP was just enabled)
+echo -n "   Verifying proxy can forward connections"
+PROBE_OK=0
+for i in $(seq 1 24); do
+    echo -n "."
+    if python3 -c "
+import socket, sys
+try:
+    s = socket.create_connection(('127.0.0.1', 5432), timeout=3)
+    s.close()
+    sys.exit(0)
+except Exception:
+    sys.exit(1)
+" 2>/dev/null; then
+        PROBE_OK=1
+        break
+    fi
+    sleep 5
+done
+echo ""
+if [ $PROBE_OK -eq 0 ]; then
+    echo "⚠️  Proxy port 5432 not responding after 2 minutes."
+    echo "   Check logs/proxy.log for errors, then re-run: sh setup.sh"
+    exit 1
+fi
+echo "   ✅ Proxy connection verified"
+echo ""
+
 # Run seed script
 echo "Creating schema and inserting sample data..."
 cd "$SCRIPT_DIR/database"
@@ -1203,19 +1233,49 @@ if [ $? -eq 0 ]; then
 else
     echo ""
     echo "❌ Database seeding failed"
-    if grep -q "does not have IP of type" "$SCRIPT_DIR/logs/proxy.log" 2>/dev/null; then
+    # Both "does not have IP of type PUBLIC" (proxy log) and "server closed the connection
+    # unexpectedly" (seed.py output) are the same root cause: AlloyDB's public IP hasn't
+    # fully propagated yet. Retry with a fresh proxy after an additional wait.
+    PROXY_IP_ERROR=$(grep -q "does not have IP of type" "$SCRIPT_DIR/logs/proxy.log" 2>/dev/null && echo "yes" || echo "")
+    if [ -n "$PROXY_IP_ERROR" ] || [ -n "$PUBLIC_IP_NEWLY_ENABLED" ]; then
         echo ""
-        echo "⚠️  The AlloyDB public IP hasn't fully propagated to the API yet."
-        echo "   Restarting Auth Proxy and retrying in 60 seconds..."
+        echo "⚠️  AlloyDB public IP propagation is still in progress."
+        echo "   Restarting Auth Proxy and retrying in 90 seconds..."
         echo ""
         kill "$(pgrep -f alloydb-auth-proxy)" 2>/dev/null || true
-        sleep 60
+        sleep 90
         if [ -n "$USE_PUBLIC_IP_FLAG" ]; then
             nohup "$PROXY_BINARY" "$INSTANCE_URI" --public-ip > "$SCRIPT_DIR/logs/proxy.log" 2>&1 &
         else
             nohup "$PROXY_BINARY" "$INSTANCE_URI" > "$SCRIPT_DIR/logs/proxy.log" 2>&1 &
         fi
-        sleep 5
+        # Wait for proxy to report ready, then probe the port
+        echo -n "   Waiting for proxy to be ready"
+        for i in $(seq 1 30); do
+            echo -n "."
+            sleep 1
+            if grep -q "ready for new connections" "$SCRIPT_DIR/logs/proxy.log" 2>/dev/null; then
+                break
+            fi
+        done
+        echo ""
+        echo -n "   Verifying proxy can forward connections"
+        for i in $(seq 1 24); do
+            echo -n "."
+            if python3 -c "
+import socket, sys
+try:
+    s = socket.create_connection(('127.0.0.1', 5432), timeout=3)
+    s.close()
+    sys.exit(0)
+except Exception:
+    sys.exit(1)
+" 2>/dev/null; then
+                break
+            fi
+            sleep 5
+        done
+        echo ""
         echo "Retrying database seed..."
         cd "$SCRIPT_DIR/database"
         python3 seed.py
