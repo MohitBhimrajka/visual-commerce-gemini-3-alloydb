@@ -50,6 +50,20 @@ load_env_file() {
     return 1
 }
 
+# Write or update a single key in .env without touching other keys.
+# Safe to call at any point — creates the file if it doesn't exist.
+update_env_key() {
+    local key=$1
+    local value=$2
+    local env_file="$SCRIPT_DIR/.env"
+    if [ -f "$env_file" ]; then
+        local content
+        content=$(grep -v "^${key}=" "$env_file")
+        printf '%s\n' "$content" > "$env_file"
+    fi
+    echo "${key}=${value}" >> "$env_file"
+}
+
 # Generate .env file with all configuration
 generate_env_file() {
     local project=$1
@@ -310,6 +324,12 @@ else
     echo "✅ Gemini API key found (loaded from .env or environment)"
 fi
 
+# Checkpoint 1: persist Gemini key + project so re-runs don't ask again
+if [ -n "$GEMINI_API_KEY" ]; then
+    update_env_key "GEMINI_API_KEY" "$GEMINI_API_KEY"
+    update_env_key "GOOGLE_CLOUD_PROJECT" "$PROJECT"
+fi
+
 # Validate API key if provided
 if [ -n "$GEMINI_API_KEY" ]; then
     echo ""
@@ -549,6 +569,7 @@ else:
                 echo ""
                 echo "❌ AlloyDB deployment failed."
                 echo "   Check the Web Preview UI for error details, fix the issue, and re-run: sh setup.sh"
+                disown "$FLASK_PID" 2>/dev/null || true
                 kill "$FLASK_PID" 2>/dev/null || true
                 sleep 1
                 pkill -f "create_alloydb.sh" 2>/dev/null || true
@@ -563,6 +584,12 @@ else:
                 "import json; print(json.load(open('$STATUS_FILE'))['summary']['connection']['instance_name'])" 2>/dev/null)
             ALLOYDB_REGION=$(python3 -c \
                 "import json; print(json.load(open('$STATUS_FILE'))['summary']['connection']['region'])" 2>/dev/null)
+            # Checkpoint 2: persist cluster details immediately so cleanup.sh can find
+            # the cluster and re-runs skip provisioning even if setup is killed here
+            update_env_key "ALLOYDB_CLUSTER"  "$ALLOYDB_CLUSTER"
+            update_env_key "ALLOYDB_INSTANCE" "$ALLOYDB_INSTANCE"
+            update_env_key "ALLOYDB_REGION"   "$ALLOYDB_REGION"
+            update_env_key "ALLOYDB_PROJECT"  "$PROJECT"
             break
         fi
 
@@ -573,8 +600,9 @@ else:
         sleep 5
     done
 
-    # Stop the Flask UI server — kill FLASK_PID directly (not by process group,
-    # which would include setup.sh itself and cause "Terminated")
+    # Stop the Flask UI server — disown first so bash doesn't print "Terminated",
+    # then kill the process directly (not by process group, which would include setup.sh itself)
+    disown "$FLASK_PID" 2>/dev/null || true
     kill "$FLASK_PID" 2>/dev/null || true
     sleep 1
     pkill -f "create_alloydb.sh" 2>/dev/null || true
@@ -662,6 +690,15 @@ else
     fi
 fi
 
+# Checkpoint 3: persist finalized instance details (may differ from checkpoint 2
+# if the user selected a different instance in the interactive prompt)
+if [ -n "$ALLOYDB_CLUSTER" ]; then
+    update_env_key "ALLOYDB_CLUSTER"  "$ALLOYDB_CLUSTER"
+    update_env_key "ALLOYDB_INSTANCE" "$ALLOYDB_INSTANCE"
+    update_env_key "ALLOYDB_REGION"   "$ALLOYDB_REGION"
+    update_env_key "ALLOYDB_PROJECT"  "$PROJECT"
+fi
+
 # Get database password
 if [ -z "$DB_PASS" ]; then
     echo ""
@@ -671,6 +708,9 @@ if [ -z "$DB_PASS" ]; then
     echo ""
     export DB_PASS
 fi
+
+# Checkpoint 4: persist DB_PASS so re-runs don't ask again
+update_env_key "DB_PASS" "$DB_PASS"
 
 echo ""
 echo "✅ Database password configured"
