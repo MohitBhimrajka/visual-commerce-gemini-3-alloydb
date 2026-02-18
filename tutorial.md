@@ -84,19 +84,17 @@ The deployment creates:
 
 ## Complete Setup & Seed Database
 
-Once the deployment finishes, you'll see the connection details displayed in the UI.
+Once the deployment finishes in the UI, **switch back to your Cloud Shell terminal** — it will have automatically detected that AlloyDB is ready and moved on.
 
-**Now, back in your Cloud Shell terminal:**
+**What happens automatically:**
 
-1. Press **Ctrl+C** to stop the UI server
-2. The setup script will automatically:
-   - **Auto-detect** your AlloyDB instance (cluster, region, project)
-   - Prompt you for the database password
+1. The setup script detects AlloyDB is READY and stops the UI server for you
+2. It auto-detects your AlloyDB instance (cluster, region, project)
 3. **When prompted for password:** Enter the password you saved in the previous step
-4. The script will then:
-   - Set up the AlloyDB Auth Proxy (with secure mTLS connection)
-   - Seed the database with 8 sample inventory parts
-   - Create the ScaNN vector index for fast semantic search
+4. The script then:
+   - Sets up the AlloyDB Auth Proxy (with secure mTLS connection)
+   - Seeds the database with 8 sample inventory parts
+   - Creates the ScaNN vector index for fast semantic search
 
 **Wait for the message:** `✅ Database seeded successfully!`
 

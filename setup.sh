@@ -420,25 +420,91 @@ if [ "$SKIP_INFRA_SETUP" = false ]; then
     echo "┌──────────────────────────────────────────────────────┐"
     echo "│  IMPORTANT: Setup Instructions                      │"
     echo "├──────────────────────────────────────────────────────┤"
-    echo "│  1. Access via Web Preview on port 8080             │"
+    echo "│  1. Click Web Preview (👁️) → Preview on port 8080  │"
     echo "│  2. Enter your Project ID: $PROJECT"
     echo "│  3. Select Region (e.g., us-central1)               │"
     echo "│  4. Set Database Password & SAVE IT!                │"
-    echo "│  5. Click 'Start Deployment' (~15 minutes)          │"
-    echo "│  6. When complete, click 'Reveal Private IP & Copy' │"
-    echo "│  7. Press Ctrl+C here when you see the details      │"
+    echo "│  5. Click 'Start Deployment' and wait ~15 minutes   │"
     echo "│                                                      │"
-    echo "│  ✅ This script will AUTO-DETECT:                   │"
-    echo "│     - Cluster name, Instance, Region, Project       │"
+    echo "│  ✅ This terminal will automatically continue       │"
+    echo "│     once AlloyDB is READY — no Ctrl+C needed!       │"
+    echo "│                                                      │"
     echo "│  ⚠️  You only need to REMEMBER the password!        │"
     echo "└──────────────────────────────────────────────────────┘"
     echo ""
     read -p "Press Enter to launch the setup UI..."
 
+    # Start the Flask UI in the background so this script can keep running
+    mkdir -p "$SCRIPT_DIR/logs"
     cd "$SCRIPT_DIR/easy-alloydb-setup"
-    sh run.sh
+    sh run.sh > "$SCRIPT_DIR/logs/alloydb-setup-ui.log" 2>&1 &
+    FLASK_PID=$!
     cd "$SCRIPT_DIR"
 
+    # Wait for port 8080 to be accepting connections (up to 15s)
+    echo ""
+    echo -n "⏳ Waiting for setup UI to start"
+    UI_READY=0
+    for i in $(seq 1 15); do
+        sleep 1
+        echo -n "."
+        if curl -s -o /dev/null http://localhost:8080 2>/dev/null; then
+            UI_READY=1
+            break
+        fi
+    done
+    echo ""
+    if [ $UI_READY -eq 1 ]; then
+        echo "✅ Setup UI is running — open Web Preview on port 8080 now"
+    else
+        echo "⚠️  UI may still be starting. Open Web Preview on port 8080 in a moment."
+    fi
+    echo ""
+
+    # Poll gcloud every 30s until an AlloyDB instance reaches READY state
+    echo "⏳ Monitoring for AlloyDB to finish provisioning..."
+    echo "   (checking every 30 seconds — this usually takes ~15 minutes)"
+    echo ""
+
+    POLL_COUNT=0
+    MAX_POLLS=70   # 35 minutes max
+    ALLOYDB_READY=0
+
+    while [ $POLL_COUNT -lt $MAX_POLLS ]; do
+        READY_INSTANCE=$(gcloud alloydb instances list \
+            --filter="state:READY" \
+            --format="value(name)" 2>/dev/null | head -n 1)
+
+        if [ -n "$READY_INSTANCE" ]; then
+            ALLOYDB_READY=1
+            break
+        fi
+
+        POLL_COUNT=$((POLL_COUNT + 1))
+        MINUTES_ELAPSED=$(( POLL_COUNT / 2 ))
+        SECONDS_ELAPSED=$(( POLL_COUNT * 30 ))
+        if [ $(( SECONDS_ELAPSED % 60 )) -eq 0 ]; then
+            echo "   Still waiting... ${MINUTES_ELAPSED}m elapsed"
+        fi
+        sleep 30
+    done
+
+    # Stop the Flask UI server (kill process group to catch the Python child too)
+    PGID=$(ps -o pgid= -p $FLASK_PID 2>/dev/null | tr -d ' ')
+    if [ -n "$PGID" ]; then
+        kill -- -"$PGID" 2>/dev/null || true
+    fi
+    pkill -f "easy-alloydb-setup" 2>/dev/null || true
+    sleep 1
+
+    echo ""
+    if [ $ALLOYDB_READY -eq 1 ]; then
+        echo "✅ AlloyDB instance is READY! Continuing setup automatically..."
+    else
+        echo "⚠️  Timed out waiting for AlloyDB (35 minutes)."
+        echo "   If provisioning completed in the UI, setup will continue."
+        echo "   If not, re-run 'sh setup.sh' once provisioning finishes."
+    fi
     echo ""
     echo "✅ Infrastructure provisioning complete!"
     echo ""
