@@ -74,20 +74,40 @@ fi
 # ============================================================================
 echo ""
 echo "🗑️  Checking for AlloyDB cluster..."
-if gcloud alloydb clusters describe "$ALLOYDB_CLUSTER" --region="$ALLOYDB_REGION" &>/dev/null; then
-    echo "   Found cluster: $ALLOYDB_CLUSTER (region: $ALLOYDB_REGION)"
-    echo "   Deleting AlloyDB cluster (this may take 5-10 minutes)..."
-    gcloud alloydb clusters delete "$ALLOYDB_CLUSTER" \
-        --region="$ALLOYDB_REGION" \
+
+delete_cluster() {
+    local cluster_name="$1"
+    local cluster_region="$2"
+    echo "   Deleting AlloyDB cluster: $cluster_name (region: $cluster_region)"
+    echo "   (this may take 5-10 minutes)..."
+    gcloud alloydb clusters delete "$cluster_name" \
+        --region="$cluster_region" \
         --force \
         --quiet
     if [ $? -eq 0 ]; then
-        echo "   ✅ Cluster deleted successfully"
+        echo "   ✅ Cluster '$cluster_name' deleted successfully"
     else
-        echo "   ⚠️  Failed to delete cluster (may require manual cleanup)"
+        echo "   ⚠️  Failed to delete '$cluster_name' (may require manual cleanup)"
     fi
+}
+
+if gcloud alloydb clusters describe "$ALLOYDB_CLUSTER" --region="$ALLOYDB_REGION" &>/dev/null; then
+    echo "   Found cluster: $ALLOYDB_CLUSTER (region: $ALLOYDB_REGION)"
+    delete_cluster "$ALLOYDB_CLUSTER" "$ALLOYDB_REGION"
 else
-    echo "   ℹ️  No cluster found (already deleted or never created)"
+    # .env cluster name may be stale (setup was interrupted before .env was updated).
+    # Fall back to listing all clusters in the project to catch any that exist.
+    echo "   Cluster '$ALLOYDB_CLUSTER' not found — scanning project for all clusters..."
+    ALL_CLUSTERS=$(gcloud alloydb clusters list --format="value(name)" 2>/dev/null)
+    if [ -n "$ALL_CLUSTERS" ]; then
+        while IFS= read -r cluster_uri; do
+            DISCOVERED_NAME=$(basename "$cluster_uri")
+            DISCOVERED_REGION=$(echo "$cluster_uri" | sed -n 's|.*/locations/\([^/]*\)/.*|\1|p')
+            delete_cluster "$DISCOVERED_NAME" "$DISCOVERED_REGION"
+        done <<< "$ALL_CLUSTERS"
+    else
+        echo "   ℹ️  No clusters found in this project (already deleted or never created)"
+    fi
 fi
 
 # ============================================================================

@@ -335,7 +335,7 @@ echo ""
 
 # First check if AlloyDB instance already exists
 echo "🔍 Checking for existing AlloyDB instance..."
-EXISTING_INSTANCES=$(gcloud alloydb instances list --format="value(name)" 2>/dev/null)
+EXISTING_INSTANCES=$(gcloud alloydb instances list --filter="state:READY" --format="value(name)" 2>/dev/null)
 
 if [ -n "$EXISTING_INSTANCES" ]; then
     INSTANCE_COUNT=$(echo "$EXISTING_INSTANCES" | wc -l | tr -d ' ')
@@ -428,6 +428,10 @@ if [ "$SKIP_INFRA_SETUP" = false ]; then
     echo "│                                                      │"
     echo "│  ✅ This terminal will automatically continue       │"
     echo "│     once AlloyDB is READY — no Ctrl+C needed!       │"
+    echo "│                                                      │"
+    echo "│  ⚠️  Keep this browser tab ACTIVE while waiting.   │"
+    echo "│     If the terminal is disconnected, just re-run:   │"
+    echo "│     sh setup.sh  (it auto-detects existing cluster) │"
     echo "│                                                      │"
     echo "│  ⚠️  You only need to REMEMBER the password!        │"
     echo "└──────────────────────────────────────────────────────┘"
