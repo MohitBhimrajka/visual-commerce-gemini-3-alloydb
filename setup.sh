@@ -442,7 +442,9 @@ if 'ALLOYDB_STATUS_FILE' not in src:
     # Add import os after import json
     src = src.replace('import json\n', 'import json\nimport os\n', 1)
 
-    # Inject file-write after both places summary is set (success + benign-error)
+    # Inject file-write after both places summary is set (success + benign-error).
+    # Always write status='done' here: if a summary exists, AlloyDB was provisioned.
+    # The benign-error branch sets deployments status='error' but the cluster IS ready.
     target = \"deployments[deploy_id]['summary'] = generate_deployment_summary(project, region, cluster, instance)\"
     inject = '''
         _sf = os.environ.get(\"ALLOYDB_STATUS_FILE\")
@@ -450,7 +452,7 @@ if 'ALLOYDB_STATUS_FILE' not in src:
             try:
                 with open(_sf, 'w') as _f:
                     import json as _j
-                    _j.dump({'status': deployments[deploy_id]['status'],
+                    _j.dump({'status': 'done',
                              'summary': deployments[deploy_id]['summary']}, _f)
             except Exception:
                 pass'''
@@ -547,8 +549,9 @@ else:
                 echo ""
                 echo "❌ AlloyDB deployment failed."
                 echo "   Check the Web Preview UI for error details, fix the issue, and re-run: sh setup.sh"
-                PGID=$(ps -o pgid= -p $FLASK_PID 2>/dev/null | tr -d ' ')
-                [ -n "$PGID" ] && kill -- -"$PGID" 2>/dev/null || true
+                kill "$FLASK_PID" 2>/dev/null || true
+                sleep 1
+                pkill -f "create_alloydb.sh" 2>/dev/null || true
                 pkill -f "easy-alloydb-setup" 2>/dev/null || true
                 exit 1
             fi
@@ -570,11 +573,11 @@ else:
         sleep 5
     done
 
-    # Stop the Flask UI server (kill process group to catch the Python child too)
-    PGID=$(ps -o pgid= -p $FLASK_PID 2>/dev/null | tr -d ' ')
-    if [ -n "$PGID" ]; then
-        kill -- -"$PGID" 2>/dev/null || true
-    fi
+    # Stop the Flask UI server — kill FLASK_PID directly (not by process group,
+    # which would include setup.sh itself and cause "Terminated")
+    kill "$FLASK_PID" 2>/dev/null || true
+    sleep 1
+    pkill -f "create_alloydb.sh" 2>/dev/null || true
     pkill -f "easy-alloydb-setup" 2>/dev/null || true
     sleep 1
 
