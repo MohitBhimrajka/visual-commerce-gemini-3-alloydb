@@ -7,6 +7,7 @@
 set +e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Check if gcloud is installed
 if ! command -v gcloud &>/dev/null; then
@@ -30,8 +31,8 @@ if [ "$confirm" != "yes" ]; then
 fi
 
 # Load .env to get resource names
-if [ -f "$SCRIPT_DIR/.env" ]; then
-    source "$SCRIPT_DIR/.env"
+if [ -f "$REPO_ROOT/.env" ]; then
+    source "$REPO_ROOT/.env"
 
     # Use ALLOYDB_REGION (written by setup.sh); fall back to REGION for older .env files
     if [ -z "$ALLOYDB_REGION" ] && [ -n "$REGION" ]; then
@@ -115,6 +116,14 @@ fi
 # ============================================================================
 echo ""
 echo "🗑️  Checking for Cloud Run services..."
+if gcloud run services describe visual-commerce-demo --region="$ALLOYDB_REGION" &>/dev/null; then
+    echo "   Found service: visual-commerce-demo"
+    gcloud run services delete visual-commerce-demo --region="$ALLOYDB_REGION" --quiet
+    echo "   ✅ visual-commerce-demo deleted"
+else
+    echo "   ℹ️  visual-commerce-demo not found (never deployed or already deleted)"
+fi
+
 if gcloud run services describe vision-agent --region="$ALLOYDB_REGION" &>/dev/null; then
     echo "   Found service: vision-agent"
     gcloud run services delete vision-agent --region="$ALLOYDB_REGION" --quiet
@@ -146,9 +155,9 @@ read -p "Remove local files? (y/N): " -n 1 -r
 echo ""
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    [ -d "$SCRIPT_DIR/easy-alloydb-setup" ]    && rm -rf "$SCRIPT_DIR/easy-alloydb-setup"   && echo "   ✅ Removed easy-alloydb-setup/"
-    [ -d "$SCRIPT_DIR/logs" ]                  && rm -rf "$SCRIPT_DIR/logs"                 && echo "   ✅ Removed logs/"
-    [ -f "$SCRIPT_DIR/.env" ]                  && rm -f "$SCRIPT_DIR/.env"                  && echo "   ✅ Removed .env"
+    [ -d "$REPO_ROOT/easy-alloydb-setup" ]    && rm -rf "$REPO_ROOT/easy-alloydb-setup"   && echo "   ✅ Removed easy-alloydb-setup/"
+    [ -d "$REPO_ROOT/logs" ]                  && rm -rf "$REPO_ROOT/logs"                 && echo "   ✅ Removed logs/"
+    [ -f "$REPO_ROOT/.env" ]                  && rm -f "$REPO_ROOT/.env"                  && echo "   ✅ Removed .env"
     echo ""
     echo "✅ Local files removed"
 else

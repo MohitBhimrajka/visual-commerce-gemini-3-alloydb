@@ -6,6 +6,10 @@
 
 set -e
 
+# Resolve repo root (deploy/ is inside the repo)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 echo ""
 echo "╔════════════════════════════════════════════════════════╗"
 echo "║  🚀 Deploy Autonomous Supply Chain to Cloud Run       ║"
@@ -15,10 +19,10 @@ echo "╚═══════════════════════�
 echo ""
 
 # ── Load .env ────────────────────────────────────────────────
-if [ -f .env ]; then
+if [ -f "$REPO_ROOT/.env" ]; then
     echo "📄 Loading configuration from .env..."
     set -a
-    source .env
+    source "$REPO_ROOT/.env"
     set +a
     echo "✅ Configuration loaded"
 else
@@ -58,8 +62,8 @@ fi
 echo ""
 
 # ── Prompt for deployer name ─────────────────────────────────
-echo "When you share this app, visitors will see your name"
-echo "as the builder. This is optional — press Enter to skip."
+echo "When you share this app, visitors will see your name."
+echo "This is optional — press Enter to skip."
 echo ""
 read -p "Your name (shown in the app): " DEPLOYER_NAME
 echo ""
@@ -93,7 +97,7 @@ gcloud services enable run.googleapis.com \
 
 # ── Deploy ───────────────────────────────────────────────────
 gcloud run deploy "$SERVICE_NAME" \
-    --source . \
+    --source "$REPO_ROOT" \
     --project "$PROJECT_ID" \
     --region "$REGION" \
     --platform managed \

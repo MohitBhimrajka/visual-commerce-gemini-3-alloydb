@@ -200,17 +200,17 @@ Wait ~10 seconds, then open **Web Preview** (👁️) → **Preview on port 8080
    - System places an autonomous order
 3. Toggle **DEMO mode** to pause at each stage
 
-## Deploy to Cloud Run
+## 🎁 Bonus: Deploy to Cloud Run
 
-Share your creation with a public URL!
+> **Optional** — Everything works locally! But if you'd like to share your creation:
 
 ```bash
-sh deploy.sh
+sh deploy/deploy.sh
 ```
 
-The script reads your `.env`, asks for your name, and deploys to Cloud Run. Share the URL — visitors will see a popup crediting you as the builder with a link back to this codelab.
+The script reads your `.env`, asks for your name, and deploys to Cloud Run. Share the URL — visitors see a popup crediting you for completing this codelab, with a link for them to try it too!
 
-> **Built as part of [Code Vipassana Season 14](https://www.codevipassana.dev/)**
+> **Completed as part of [Code Vipassana Season 14](https://www.codevipassana.dev/)**
 
 ## What Just Happened?
 

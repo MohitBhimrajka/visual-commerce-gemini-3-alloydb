@@ -621,7 +621,7 @@
             <button class="deployer-close" onclick="dismissDeployerPopup()">&times;</button>
             <div class="deployer-emoji">🚀</div>
             <div class="deployer-text">
-                <span class="deployer-built">Built by</span>
+                <span class="deployer-built">Deployed by</span>
                 <span class="deployer-name" id="deployer-name-text"></span>
             </div>
             <div class="deployer-stack">
@@ -629,11 +629,11 @@
                     Protocol</strong>
             </div>
             <div class="deployer-vipassana">
-                Made as part of <a href="https://www.codevipassana.dev/" target="_blank" rel="noopener">Code Vipassana
-                    Season 14</a>
+                Completed as part of <a href="https://www.codevipassana.dev/" target="_blank" rel="noopener">Code
+                    Vipassana Season 14</a>
             </div>
             <a class="deployer-cta" id="deployer-cta-link" href="#" target="_blank" rel="noopener">
-                Learn how to build this →
+                Try the codelab yourself →
             </a>
         </div>
     </div>
@@ -828,7 +828,7 @@
                 const badge = document.getElementById('deployer-badge');
                 const badgeText = document.getElementById('deployer-badge-text');
                 const badgeLink = document.getElementById('deployer-badge-link');
-                badgeText.textContent = `Built by ${data.name} · Code Vipassana S14`;
+                badgeText.textContent = `Deployed by ${data.name} · Code Vipassana S14`;
                 badgeLink.href = data.codelab_url;
 
                 if (dismissed) {

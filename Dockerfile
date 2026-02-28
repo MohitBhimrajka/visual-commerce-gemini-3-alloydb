@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir \
 
 EXPOSE 8080
 
-CMD ["sh", "start.sh"]
+CMD ["sh", "deploy/start.sh"]

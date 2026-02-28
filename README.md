@@ -159,24 +159,24 @@ curl http://localhost:8082/health
 curl http://localhost:8080/api/health
 ```
 
-## Deploy to Cloud Run
+## 🎁 Bonus: Deploy to Cloud Run
 
-Share your app with a public URL:
+> **Optional** — Everything works locally, but if you want to share your creation with a public URL:
 
 ```bash
-sh deploy.sh
+sh deploy/deploy.sh
 ```
 
-The script reads your `.env`, asks for your name, and deploys everything to Cloud Run. Visitors will see a credit popup with your name and a link to the codelab.
+The script reads your `.env`, asks for your name, and deploys to Cloud Run. Share the URL — visitors see a popup crediting you as the person who completed this codelab, with a link for them to try it too!
 
-> **Built as part of [Code Vipassana Season 14](https://www.codevipassana.dev/)**
+> **Completed as part of [Code Vipassana Season 14](https://www.codevipassana.dev/)**
 
 ## Cleanup
 
 To avoid charges, run the cleanup script:
 
 ```bash
-sh cleanup.sh
+sh deploy/cleanup.sh
 ```
 
 This deletes the AlloyDB cluster, removes any deployed Cloud Run services, and optionally removes local files (logs, `.env`).
