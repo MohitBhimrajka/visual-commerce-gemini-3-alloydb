@@ -78,6 +78,9 @@ fi
 echo "✅ Environment configured"
 echo ""
 
+# Create logs directory
+mkdir -p logs
+
 # ============================================================================
 # Setup Cleanup Handler
 # ============================================================================
