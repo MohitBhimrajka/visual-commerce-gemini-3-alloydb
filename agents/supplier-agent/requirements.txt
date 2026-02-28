@@ -1,5 +1,6 @@
 google-cloud-alloydb-connector[pg8000]
 python-dotenv
 google-genai
+a2a-sdk[http-server]
 uvicorn
 starlette
