@@ -159,6 +159,18 @@ curl http://localhost:8082/health
 curl http://localhost:8080/api/health
 ```
 
+## Deploy to Cloud Run
+
+Share your app with a public URL:
+
+```bash
+sh deploy.sh
+```
+
+The script reads your `.env`, asks for your name, and deploys everything to Cloud Run. Visitors will see a credit popup with your name and a link to the codelab.
+
+> **Built as part of [Code Vipassana Season 14](https://www.codevipassana.dev/)**
+
 ## Cleanup
 
 To avoid charges, run the cleanup script:

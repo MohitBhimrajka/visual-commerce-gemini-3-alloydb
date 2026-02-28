@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,6 +10,7 @@
     <link rel="stylesheet" href="/static/styles.css">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
+
 <body x-data="appState()">
 
     <!-- ═══════════════════════════════════════════
@@ -46,7 +48,8 @@
          FIXED CONTROLS (top right)
          ═══════════════════════════════════════════ -->
     <div class="fixed-controls no-print">
-        <button @click="toggleDemoMode()" class="demo-toggle" :class="{'active': demoMode}" :title="demoMode ? 'Demo Mode: ON (pauses at each stage)' : 'Demo Mode: OFF (auto-advances)'">
+        <button @click="toggleDemoMode()" class="demo-toggle" :class="{'active': demoMode}"
+            :title="demoMode ? 'Demo Mode: ON (pauses at each stage)' : 'Demo Mode: OFF (auto-advances)'">
             <span x-text="demoMode ? 'DEMO' : 'AUTO'"></span>
         </button>
         <button @click="toggleAudio()" class="mute-toggle" :title="audioEnabled ? 'Mute' : 'Unmute'">
@@ -103,7 +106,8 @@
             </div>
 
             <!-- Agent activity -->
-            <div class="agent-panel floating-status-card" :class="{'tint-vision': step === 1, 'tint-memory': step === 2, 'tint-action': step >= 3}">
+            <div class="agent-panel floating-status-card"
+                :class="{'tint-vision': step === 1, 'tint-memory': step === 2, 'tint-action': step >= 3}">
                 <h3 class="panel-title">Agent Activity</h3>
                 <div class="agent-activity">
                     <div class="activity-text" x-text="orchestratorText || 'System ready'"></div>
@@ -144,23 +148,24 @@
                 </div>
 
                 <!-- Upload area (compact) -->
-                <div class="upload-area"
-                     :class="{'drag-over': isDragging, 'has-image': uploadedImage}"
-                     @dragover.prevent="isDragging = true"
-                     @dragleave.prevent="isDragging = false"
-                     @drop.prevent="handleDrop($event)">
+                <div class="upload-area" :class="{'drag-over': isDragging, 'has-image': uploadedImage}"
+                    @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false"
+                    @drop.prevent="handleDrop($event)">
 
                     <template x-if="!uploadedImage">
                         <label for="file-upload" class="upload-label">
                             <svg class="upload-icon" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                                <path
+                                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                             </svg>
                             <span class="upload-text">
                                 <span class="upload-link">Upload a file</span>
                                 or drag and drop
                             </span>
                             <span class="upload-hint">PNG, JPG, JPEG up to 10MB</span>
-                            <input id="file-upload" type="file" style="display: none;" accept="image/*" @change="handleFileSelect($event)">
+                            <input id="file-upload" type="file" style="display: none;" accept="image/*"
+                                @change="handleFileSelect($event)">
                         </label>
                     </template>
 
@@ -168,8 +173,10 @@
                         <div style="position: relative;">
                             <img :src="uploadedImage" alt="Uploaded warehouse image" class="uploaded-preview">
                             <button @click="resetUpload()" class="remove-image-btn">
-                                <svg style="width: 1rem; height: 1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                <svg style="width: 1rem; height: 1rem;" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12"></path>
                                 </svg>
                             </button>
                         </div>
@@ -178,9 +185,8 @@
 
                 <!-- Start button (only shows when image uploaded) -->
                 <div class="text-center" x-show="uploadedImage" style="margin-top: var(--space-5);">
-                    <button @click="startAnalysis()"
-                            :disabled="!uploadedImage || isProcessing"
-                            class="btn btn-primary btn-lg">
+                    <button @click="startAnalysis()" :disabled="!uploadedImage || isProcessing"
+                        class="btn btn-primary btn-lg">
                         <template x-if="!isProcessing">
                             <span>Initiate Autonomous Workflow</span>
                         </template>
@@ -197,7 +203,12 @@
                 <div class="value-props" x-show="!uploadedImage">
                     <div class="value-prop">
                         <div class="prop-icon" style="color: var(--blue);">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5">
+                                <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path
+                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
                         </div>
                         <div>
                             <div class="prop-title">Count with Gemini 3 Flash</div>
@@ -206,7 +217,11 @@
                     </div>
                     <div class="value-prop">
                         <div class="prop-icon" style="color: var(--purple);">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5">
+                                <circle cx="11" cy="11" r="8" />
+                                <path d="M21 21l-4.35-4.35" />
+                            </svg>
                         </div>
                         <div>
                             <div class="prop-title">Match via AlloyDB ScaNN</div>
@@ -215,7 +230,10 @@
                     </div>
                     <div class="value-prop">
                         <div class="prop-icon" style="color: var(--green);">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5">
+                                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
                         </div>
                         <div>
                             <div class="prop-title">Order via A2A Protocol</div>
@@ -246,7 +264,7 @@
                     <div class="bbox-overlay" x-show="visionResult && boundingBoxes.length > 0">
                         <template x-for="(box, idx) in boundingBoxes" :key="idx">
                             <div class="bbox-rect"
-                                 :style="`top: ${box.box_2d[0] / 10}%; left: ${box.box_2d[1] / 10}%; height: ${(box.box_2d[2] - box.box_2d[0]) / 10}%; width: ${(box.box_2d[3] - box.box_2d[1]) / 10}%; animation-delay: ${idx * 60}ms;`">
+                                :style="`top: ${box.box_2d[0] / 10}%; left: ${box.box_2d[1] / 10}%; height: ${(box.box_2d[2] - box.box_2d[0]) / 10}%; width: ${(box.box_2d[3] - box.box_2d[1]) / 10}%; animation-delay: ${idx * 60}ms;`">
                                 <span class="bbox-label" x-text="box.label"></span>
                             </div>
                         </template>
@@ -255,13 +273,17 @@
                     <!-- Result badge -->
                     <div x-show="visionResult" class="result-container">
                         <div class="count-badge">
-                            <div class="badge-indicator" :class="{'confirmed': visionResult?.hasCodeExecution, 'estimated': !visionResult?.hasCodeExecution}">
+                            <div class="badge-indicator"
+                                :class="{'confirmed': visionResult?.hasCodeExecution, 'estimated': !visionResult?.hasCodeExecution}">
                                 <span x-show="visionResult?.hasCodeExecution">&#10003;</span>
                                 <span x-show="!visionResult?.hasCodeExecution">~</span>
                             </div>
                             <div class="badge-content">
-                                <div class="badge-count" x-text="visionResult ? `${visionResult.item_count} ${visionResult.item_type}` : ''"></div>
-                                <div class="badge-label" x-text="visionResult?.hasCodeExecution ? 'Code-Verified' : 'Calculated'"></div>
+                                <div class="badge-count"
+                                    x-text="visionResult ? `${visionResult.item_count} ${visionResult.item_type}` : ''">
+                                </div>
+                                <div class="badge-label"
+                                    x-text="visionResult?.hasCodeExecution ? 'Code-Verified' : 'Calculated'"></div>
                             </div>
                         </div>
                         <div class="count-summary" x-text="visionResult ? visionResult.summary : ''"></div>
@@ -274,14 +296,25 @@
                 <!-- Transition header -->
                 <div class="act-transition-header">
                     <div class="transition-badge vision-done">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/></svg>
-                        <span x-text="visionResult ? `${visionResult.item_count} ${visionResult.item_type} detected` : ''"></span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M9 12l2 2 4-4" />
+                        </svg>
+                        <span
+                            x-text="visionResult ? `${visionResult.item_count} ${visionResult.item_type} detected` : ''"></span>
                     </div>
                     <div class="transition-arrow">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.5">
+                            <path d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
                     </div>
                     <div class="transition-badge supplier-active">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="11" cy="11" r="8" />
+                            <path d="M21 21l-4.35-4.35" />
+                        </svg>
                         <span>Finding supplier match</span>
                     </div>
                 </div>
@@ -292,7 +325,12 @@
                     <div class="vector-search-viz" x-show="!supplierResult">
                         <div class="search-animation-container">
                             <div class="db-icon-container">
-                                <svg class="db-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/></svg>
+                                <svg class="db-icon" width="48" height="48" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="1">
+                                    <ellipse cx="12" cy="5" rx="9" ry="3" />
+                                    <path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3" />
+                                    <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
+                                </svg>
                                 <span class="db-label">AlloyDB</span>
                             </div>
                             <div class="search-vectors">
@@ -305,7 +343,8 @@
                         </div>
                         <div class="search-status-text">
                             <span class="search-query-label">Search query:</span>
-                            <span class="search-query-value" x-text="visionResult ? visionResult.search_query : ''"></span>
+                            <span class="search-query-value"
+                                x-text="visionResult ? visionResult.search_query : ''"></span>
                         </div>
                     </div>
 
@@ -322,11 +361,13 @@
                             </div>
                             <div class="supplier-detail-row">
                                 <span class="detail-label">Supplier</span>
-                                <span class="detail-value" x-text="supplierResult ? supplierResult.supplier : ''"></span>
+                                <span class="detail-value"
+                                    x-text="supplierResult ? supplierResult.supplier : ''"></span>
                             </div>
                             <div class="supplier-detail-row">
                                 <span class="detail-label">Match Confidence</span>
-                                <span class="detail-value confidence-high" x-text="supplierResult ? supplierResult.confidence : ''"></span>
+                                <span class="detail-value confidence-high"
+                                    x-text="supplierResult ? supplierResult.confidence : ''"></span>
                             </div>
                         </div>
                         <div class="text-center" style="margin-top: var(--space-5);" x-show="step === 2">
@@ -339,7 +380,8 @@
             </section>
 
             <!-- ACT 3: ORDER ──────────────────── -->
-            <section class="act act-order" :class="{ 'active': step === 3 || step === 4 }" x-show="step === 3 || step === 4">
+            <section class="act act-order" :class="{ 'active': step === 3 || step === 4 }"
+                x-show="step === 3 || step === 4">
                 <div class="receipt-card">
                     <div class="receipt-header">
                         <div class="receipt-checkmark">&#10003;</div>
@@ -366,7 +408,8 @@
                         </div>
                         <div class="receipt-row">
                             <span class="receipt-label">Confidence</span>
-                            <span class="receipt-value confidence-high" x-text="visionResult ? visionResult.confidence : ''"></span>
+                            <span class="receipt-value confidence-high"
+                                x-text="visionResult ? visionResult.confidence : ''"></span>
                         </div>
                     </div>
 
@@ -382,7 +425,9 @@
             <div class="demo-continue-overlay" x-show="demoWaiting" x-transition>
                 <button @click="demoContinue()" class="btn btn-primary btn-lg demo-continue-btn">
                     Continue
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
                 </button>
             </div>
 
@@ -490,10 +535,20 @@
                 <div class="agent-card" x-show="discoveredAgent" x-transition>
                     <div class="agent-icon">
                         <span x-show="discoveredAgent?.name === 'vision'">
-                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.5"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--blue)"
+                                stroke-width="1.5">
+                                <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path
+                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
                         </span>
                         <span x-show="discoveredAgent?.name === 'supplier'">
-                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="1.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/></svg>
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--purple)"
+                                stroke-width="1.5">
+                                <ellipse cx="12" cy="5" rx="9" ry="3" />
+                                <path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3" />
+                                <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
+                            </svg>
                         </span>
                     </div>
                     <div class="agent-info">
@@ -537,7 +592,8 @@
                             </div>
                             <div class="meta-item">
                                 <span class="meta-label">Streaming</span>
-                                <span class="meta-value" x-text="discoveredAgent?.streaming ? 'Supported' : 'Not supported'"></span>
+                                <span class="meta-value"
+                                    x-text="discoveredAgent?.streaming ? 'Supported' : 'Not supported'"></span>
                             </div>
                         </div>
                     </div>
@@ -556,5 +612,254 @@
 
     <script src="/static/app.js"></script>
 
+    <!-- ═══════════════════════════════════════════
+         DEPLOYER CREDIT POPUP
+         ═══════════════════════════════════════════ -->
+    <div id="deployer-popup" style="display: none;">
+        <div class="deployer-backdrop"></div>
+        <div class="deployer-modal">
+            <button class="deployer-close" onclick="dismissDeployerPopup()">&times;</button>
+            <div class="deployer-emoji">🚀</div>
+            <div class="deployer-text">
+                <span class="deployer-built">Built by</span>
+                <span class="deployer-name" id="deployer-name-text"></span>
+            </div>
+            <div class="deployer-stack">
+                Powered by <strong>Gemini 3 Flash</strong> &middot; <strong>AlloyDB AI</strong> &middot; <strong>A2A
+                    Protocol</strong>
+            </div>
+            <div class="deployer-vipassana">
+                Made as part of <a href="https://www.codevipassana.dev/" target="_blank" rel="noopener">Code Vipassana
+                    Season 14</a>
+            </div>
+            <a class="deployer-cta" id="deployer-cta-link" href="#" target="_blank" rel="noopener">
+                Learn how to build this →
+            </a>
+        </div>
+    </div>
+
+    <!-- Persistent bottom badge (shown after popup dismissed) -->
+    <div id="deployer-badge" style="display: none;">
+        <span id="deployer-badge-text"></span>
+        <span class="deployer-badge-sep">&middot;</span>
+        <a id="deployer-badge-link" href="#" target="_blank" rel="noopener">Learn how →</a>
+    </div>
+
+    <style>
+        /* Deployer Popup */
+        .deployer-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 9998;
+        }
+
+        .deployer-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+            background: rgba(20, 22, 28, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 2.5rem 3rem;
+            text-align: center;
+            max-width: 440px;
+            width: 90%;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(99, 102, 241, 0.15);
+            animation: deployerSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes deployerSlideIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -45%) scale(0.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        .deployer-close {
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 1.5rem;
+            cursor: pointer;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+
+        .deployer-close:hover {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .deployer-emoji {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .deployer-text {
+            margin-bottom: 1rem;
+        }
+
+        .deployer-built {
+            display: block;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.3rem;
+        }
+
+        .deployer-name {
+            display: block;
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .deployer-stack {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 0.8rem;
+            line-height: 1.5;
+        }
+
+        .deployer-stack strong {
+            color: rgba(255, 255, 255, 0.75);
+        }
+
+        .deployer-vipassana {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.4);
+            margin-bottom: 1.5rem;
+        }
+
+        .deployer-vipassana a {
+            color: #a855f7;
+            text-decoration: none;
+        }
+
+        .deployer-vipassana a:hover {
+            text-decoration: underline;
+        }
+
+        .deployer-cta {
+            display: inline-block;
+            padding: 0.65rem 1.8rem;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .deployer-cta:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4);
+        }
+
+        /* Persistent Bottom Badge */
+        #deployer-badge {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            background: rgba(20, 22, 28, 0.85);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 0.5rem 1rem;
+            text-align: center;
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.4);
+            animation: badgeSlideUp 0.3s ease-out;
+        }
+
+        @keyframes badgeSlideUp {
+            from {
+                transform: translateY(100%);
+            }
+
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        .deployer-badge-sep {
+            margin: 0 0.4rem;
+        }
+
+        #deployer-badge a {
+            color: #818cf8;
+            text-decoration: none;
+        }
+
+        #deployer-badge a:hover {
+            text-decoration: underline;
+        }
+    </style>
+
+    <script>
+        // Deployer credit popup logic
+        (async function () {
+            try {
+                const res = await fetch('/api/deployer');
+                const data = await res.json();
+                if (!data.show) return;
+
+                const dismissed = localStorage.getItem('deployer_popup_dismissed');
+
+                // Always show the bottom badge
+                const badge = document.getElementById('deployer-badge');
+                const badgeText = document.getElementById('deployer-badge-text');
+                const badgeLink = document.getElementById('deployer-badge-link');
+                badgeText.textContent = `Built by ${data.name} · Code Vipassana S14`;
+                badgeLink.href = data.codelab_url;
+
+                if (dismissed) {
+                    // Already dismissed — just show badge
+                    badge.style.display = 'block';
+                    return;
+                }
+
+                // Show popup
+                const popup = document.getElementById('deployer-popup');
+                document.getElementById('deployer-name-text').textContent = data.name;
+                const ctaLink = document.getElementById('deployer-cta-link');
+                ctaLink.href = data.codelab_url;
+                popup.style.display = 'block';
+
+                // Auto-dismiss after 10 seconds
+                setTimeout(() => dismissDeployerPopup(), 10000);
+            } catch (e) {
+                // Silently fail — no popup in dev mode
+            }
+        })();
+
+        function dismissDeployerPopup() {
+            const popup = document.getElementById('deployer-popup');
+            if (popup) popup.style.display = 'none';
+            localStorage.setItem('deployer_popup_dismissed', 'true');
+            const badge = document.getElementById('deployer-badge');
+            if (badge) badge.style.display = 'block';
+        }
+    </script>
+
 </body>
+
 </html>

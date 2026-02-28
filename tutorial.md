@@ -200,6 +200,18 @@ Wait ~10 seconds, then open **Web Preview** (👁️) → **Preview on port 8080
    - System places an autonomous order
 3. Toggle **DEMO mode** to pause at each stage
 
+## Deploy to Cloud Run
+
+Share your creation with a public URL!
+
+```bash
+sh deploy.sh
+```
+
+The script reads your `.env`, asks for your name, and deploys to Cloud Run. Share the URL — visitors will see a popup crediting you as the builder with a link back to this codelab.
+
+> **Built as part of [Code Vipassana Season 14](https://www.codevipassana.dev/)**
+
 ## What Just Happened?
 
 Congratulations! You've built an **agentic AI system** that:
