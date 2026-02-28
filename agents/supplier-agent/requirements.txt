@@ -1,6 +1,6 @@
-a2a-sdk[http-server]
-psycopg2-binary
-pgvector
-uvicorn
-google-genai
+google-cloud-alloydb-connector[pg8000]
 python-dotenv
+google-genai
+a2a-sdk[http-server]
+uvicorn
+starlette

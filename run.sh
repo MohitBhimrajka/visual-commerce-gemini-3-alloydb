@@ -1,6 +1,6 @@
 #!/bin/bash
 # Autonomous Supply Chain - Master Run Script
-# Starts all services: Auth Proxy, Vision Agent, Supplier Agent, Control Tower
+# Starts all services: Vision Agent, Supplier Agent, Control Tower
 # Usage: sh run.sh
 
 set -e
@@ -50,6 +50,19 @@ if [ -z "$GOOGLE_CLOUD_PROJECT" ]; then
 fi
 echo "✅ GCP project configured for Supplier Agent"
 
+# Build ALLOYDB_INSTANCE_URI from component env vars
+if [ -z "$ALLOYDB_INSTANCE_URI" ]; then
+    if [ -n "$ALLOYDB_REGION" ] && [ -n "$ALLOYDB_CLUSTER" ] && [ -n "$ALLOYDB_INSTANCE" ]; then
+        export ALLOYDB_INSTANCE_URI="projects/${GOOGLE_CLOUD_PROJECT}/locations/${ALLOYDB_REGION}/clusters/${ALLOYDB_CLUSTER}/instances/${ALLOYDB_INSTANCE}"
+    else
+        echo "❌ AlloyDB not configured (required for Supplier Agent)"
+        echo "   Set ALLOYDB_REGION, ALLOYDB_CLUSTER, and ALLOYDB_INSTANCE in .env"
+        echo "   Or run: sh setup.sh"
+        exit 1
+    fi
+fi
+echo "✅ AlloyDB configured: $ALLOYDB_REGION/$ALLOYDB_CLUSTER/$ALLOYDB_INSTANCE"
+
 # Check DB_PASS
 if [ -z "$DB_PASS" ]; then
     echo "⚠️  DB_PASS not set. Supplier Agent won't be able to connect to database."
@@ -65,6 +78,9 @@ fi
 echo "✅ Environment configured"
 echo ""
 
+# Create logs directory
+mkdir -p logs
+
 # ============================================================================
 # Setup Cleanup Handler
 # ============================================================================
@@ -72,25 +88,22 @@ echo ""
 cleanup() {
     echo ""
     echo "🛑 Shutting down all services..."
-    
-    # Kill background processes
+
     if [ ! -z "$VISION_PID" ] && kill -0 $VISION_PID 2>/dev/null; then
         kill $VISION_PID 2>/dev/null || true
         echo "   Stopped Vision Agent"
     fi
-    
+
     if [ ! -z "$SUPPLIER_PID" ] && kill -0 $SUPPLIER_PID 2>/dev/null; then
         kill $SUPPLIER_PID 2>/dev/null || true
         echo "   Stopped Supplier Agent"
     fi
-    
+
     if [ ! -z "$FRONTEND_PID" ] && kill -0 $FRONTEND_PID 2>/dev/null; then
         kill $FRONTEND_PID 2>/dev/null || true
         echo "   Stopped Control Tower"
     fi
-    
-    # Note: We don't stop Auth Proxy as it may be used by other processes
-    
+
     echo ""
     echo "✅ All services stopped"
     exit 0
@@ -99,130 +112,10 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 # ============================================================================
-# Start AlloyDB Auth Proxy
-# ============================================================================
-
-echo "📡 Step 1/4: Checking AlloyDB Auth Proxy..."
-
-PROXY_BINARY="$SCRIPT_DIR/alloydb-auth-proxy"
-
-if [ ! -f "$PROXY_BINARY" ]; then
-    echo "❌ Auth Proxy binary not found"
-    echo "   Run 'sh setup.sh' first to download it"
-    exit 1
-fi
-
-# Detect AlloyDB instance (prefer .env if set)
-if [ -n "$ALLOYDB_PROJECT" ] && [ -n "$ALLOYDB_REGION" ] && [ -n "$ALLOYDB_CLUSTER" ] && [ -n "$ALLOYDB_INSTANCE" ]; then
-    # Use instance from .env (set by setup.sh)
-    INSTANCE_URI="projects/$ALLOYDB_PROJECT/locations/$ALLOYDB_REGION/clusters/$ALLOYDB_CLUSTER/instances/$ALLOYDB_INSTANCE"
-    echo "✅ Using instance from .env: ${ALLOYDB_CLUSTER}/${ALLOYDB_INSTANCE}"
-else
-    # Fallback: detect from gcloud
-    INSTANCES=$(gcloud alloydb instances list --format="value(name)" 2>/dev/null)
-    
-    if [ -z "$INSTANCES" ]; then
-        echo "❌ No AlloyDB instance found"
-        echo "   Run 'sh setup.sh' first to provision infrastructure"
-        exit 1
-    fi
-    
-    INSTANCE_COUNT=$(echo "$INSTANCES" | wc -l | tr -d ' ')
-    
-    if [ "$INSTANCE_COUNT" -eq 1 ]; then
-        INSTANCE_URI="$INSTANCES"
-        echo "✅ Using detected instance"
-    else
-        # Multiple instances but no .env preference - use first one
-        INSTANCE_URI=$(echo "$INSTANCES" | head -n 1)
-        echo "⚠️  Multiple instances found, using first one"
-        echo "   Run 'sh setup.sh' to select and save preference to .env"
-    fi
-fi
-
-# Set explicit credentials path if ADC exists
-ADC_PATH="$HOME/.config/gcloud/application_default_credentials.json"
-if [ -f "$ADC_PATH" ]; then
-    export GOOGLE_APPLICATION_CREDENTIALS="$ADC_PATH"
-fi
-
-# Check if proxy is already running and working
-EXISTING_PROXY_PID=$(pgrep -f "alloydb-auth-proxy" 2>/dev/null | head -n 1)
-if [ -n "$EXISTING_PROXY_PID" ]; then
-    # Check if it has OAuth errors
-    if [ -f "$SCRIPT_DIR/logs/proxy.log" ] && grep -q "oauth2.*invalid token" "$SCRIPT_DIR/logs/proxy.log" 2>/dev/null; then
-        echo "⚠️  Existing Auth Proxy has authentication errors"
-        echo "   Restarting with fresh credentials..."
-        kill $EXISTING_PROXY_PID 2>/dev/null || true
-        sleep 2
-    else
-        echo "✅ Auth Proxy already running (PID: $EXISTING_PROXY_PID)"
-        # Verify it's actually working by checking log
-        if grep -q "ready for new connections" "$SCRIPT_DIR/logs/proxy.log" 2>/dev/null; then
-            echo "   Status: Ready for connections"
-        fi
-        sleep 1
-        # Skip starting a new one
-        EXISTING_PROXY_PID=""
-    fi
-fi
-
-if ! pgrep -f "alloydb-auth-proxy" > /dev/null; then
-    echo "🚀 Starting Auth Proxy in background..."
-    
-    # Check if instance has Public IP
-    PUBLIC_IP=""
-    if [ -n "$ALLOYDB_INSTANCE" ] && [ -n "$ALLOYDB_CLUSTER" ] && [ -n "$ALLOYDB_REGION" ]; then
-        PUBLIC_IP=$(gcloud alloydb instances describe "$ALLOYDB_INSTANCE" \
-            --cluster="$ALLOYDB_CLUSTER" \
-            --region="$ALLOYDB_REGION" \
-            --format="value(publicIpAddress)" 2>/dev/null)
-    fi
-    
-    mkdir -p "$SCRIPT_DIR/logs"
-    
-    if [ -n "$PUBLIC_IP" ]; then
-        echo "   ✅ Public IP detected: $PUBLIC_IP (using --public-ip flag)"
-        nohup "$PROXY_BINARY" "$INSTANCE_URI" --public-ip > "$SCRIPT_DIR/logs/proxy.log" 2>&1 &
-    else
-        nohup "$PROXY_BINARY" "$INSTANCE_URI" > "$SCRIPT_DIR/logs/proxy.log" 2>&1 &
-    fi
-    
-    PROXY_PID=$!
-    echo "   PID: $PROXY_PID (logs: logs/proxy.log)"
-    
-    # Wait for proxy to be ready
-    echo -n "   Waiting for proxy"
-    for i in {1..10}; do
-        echo -n "."
-        sleep 1
-        if grep -q "ready for new connections" "$SCRIPT_DIR/logs/proxy.log" 2>/dev/null; then
-            break
-        fi
-    done
-    echo ""
-    
-    if pgrep -f "alloydb-auth-proxy" > /dev/null; then
-        if grep -q "oauth2.*invalid token" "$SCRIPT_DIR/logs/proxy.log" 2>/dev/null; then
-            echo "⚠️  Auth Proxy started but has authentication issues"
-            echo "   Run: gcloud auth application-default login"
-            echo "   Then restart: sh run.sh"
-        else
-            echo "✅ Auth Proxy started"
-        fi
-    else
-        echo "❌ Failed to start Auth Proxy. Check logs/proxy.log"
-        exit 1
-    fi
-fi
-
-echo ""
-
-# ============================================================================
 # Start Vision Agent
 # ============================================================================
 
-echo "👁️  Step 2/4: Starting Vision Agent (API Key mode)..."
+echo "👁️  Step 1/3: Starting Vision Agent (API Key mode)..."
 
 cd "$SCRIPT_DIR/agents/vision-agent"
 
@@ -234,7 +127,7 @@ pip install -q -r requirements.txt
 python3 -m uvicorn main:app --host 0.0.0.0 --port 8081 > "$SCRIPT_DIR/logs/vision-agent.log" 2>&1 &
 VISION_PID=$!
 
-# Health check with retries (Vision Agent takes longer to initialize)
+# Health check with retries
 RETRY_COUNT=0
 MAX_RETRIES=20
 VISION_HEALTHY=false
@@ -262,7 +155,7 @@ echo ""
 # Start Supplier Agent
 # ============================================================================
 
-echo "🧠 Step 3/4: Starting Supplier Agent..."
+echo "🧠 Step 2/3: Starting Supplier Agent..."
 
 cd "$SCRIPT_DIR/agents/supplier-agent"
 
@@ -302,7 +195,7 @@ echo ""
 # Start Control Tower (Frontend)
 # ============================================================================
 
-echo "🎨 Step 4/4: Starting Control Tower..."
+echo "🎨 Step 3/3: Starting Control Tower..."
 
 cd "$SCRIPT_DIR/frontend"
 
@@ -342,6 +235,8 @@ echo ""
 # All Services Running
 # ============================================================================
 
+mkdir -p "$SCRIPT_DIR/logs"
+
 echo "╔════════════════════════════════════════════════╗"
 echo "║  ✅ All Services Running!                      ║"
 echo "╠════════════════════════════════════════════════╣"
@@ -359,7 +254,6 @@ echo "📄 Logs available at:"
 echo "   logs/vision-agent.log"
 echo "   logs/supplier-agent.log"
 echo "   logs/frontend.log"
-echo "   logs/proxy.log"
 echo ""
 echo "Press Ctrl+C to stop all services"
 echo ""

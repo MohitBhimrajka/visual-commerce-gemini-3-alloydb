@@ -19,19 +19,20 @@ This agent uses embeddings + ScaNN:
 
 ## Technology
 
-- **AlloyDB AI** - PostgreSQL-compatible with AI extensions
-- **ScaNN** (Scalable Nearest Neighbors) - Vector quantization for speed
-- **Vertex AI Embeddings** - `text-embedding-005` model
-- **pgvector** - PostgreSQL vector extension
-- **A2A Protocol** - Agent discovery and communication
+- **AlloyDB AI** — PostgreSQL-compatible with AI extensions
+- **AlloyDB Python Connector** — Secure connection without Auth Proxy (IAM auth, managed SSL)
+- **ScaNN** (Scalable Nearest Neighbors) — Vector quantization for speed
+- **Vertex AI Embeddings** — `text-embedding-005` model
+- **pg8000** — Pure-Python PostgreSQL driver
+- **A2A Protocol** — Agent discovery and communication
 
 ## Files
 
-- `inventory.py` - AlloyDB ScaNN query logic
-- `agent_executor.py` - A2A protocol bridge
-- `main.py` - FastAPI server (port 8082)
-- `agent_card_skeleton.json` - Template for agent card
-- `requirements.txt` - Python dependencies
+- `inventory.py` — AlloyDB ScaNN query logic (connects via Python Connector)
+- `agent_executor.py` — A2A protocol bridge
+- `main.py` — FastAPI server (port 8082)
+- `agent_card_skeleton.json` — Template for agent card
+- `requirements.txt` — Python dependencies
 
 ## ScaNN Query
 
@@ -75,7 +76,28 @@ sh run.sh
 pip install -r requirements.txt
 export GOOGLE_CLOUD_PROJECT=$(gcloud config get-value project)
 export DB_PASS='your-password'
+export ALLOYDB_REGION='us-central1'
+export ALLOYDB_CLUSTER='my-cluster'
+export ALLOYDB_INSTANCE='my-instance'
 uvicorn main:asgi_app --host 0.0.0.0 --port 8082
+```
+
+## Database Connection
+
+Connects via the AlloyDB Python Connector (no Auth Proxy needed):
+
+```python
+from google.cloud.alloydbconnector import Connector
+
+connector = Connector()
+conn = connector.connect(
+    inst_uri,         # Full instance URI
+    "pg8000",
+    user="postgres",
+    password=os.environ["DB_PASS"],
+    db="postgres",
+    ip_type="PUBLIC",  # Use "PRIVATE" for Cloud Run
+)
 ```
 
 ## A2A Agent Card
@@ -129,26 +151,15 @@ Or with pre-computed embedding:
 }
 ```
 
-## Database Connection
-
-Connects via AlloyDB Auth Proxy:
-
-```python
-psycopg2.connect(
-    host="127.0.0.1",  # Auth Proxy tunnel
-    port=5432,
-    user="postgres",
-    password=os.environ["DB_PASS"],
-    dbname="postgres",
-)
-```
-
 ## Environment Variables
 
 ```bash
 # Required
 export GOOGLE_CLOUD_PROJECT=your-project-id
 export DB_PASS=your-database-password
+export ALLOYDB_REGION=us-central1
+export ALLOYDB_CLUSTER=my-cluster
+export ALLOYDB_INSTANCE=my-instance
 
 # Optional
 export SUPPLIER_AGENT_URL=http://localhost:8082
@@ -173,7 +184,7 @@ vector = response.embeddings[0].values  # 768 dimensions
 
 ## ScaNN Index Configuration
 
-Created during database seeding:
+Created during database setup in AlloyDB Studio:
 
 ```sql
 CREATE INDEX idx_inventory_scann
@@ -221,9 +232,9 @@ ORDER BY part_embedding <=> %s::vector
 
 ### Connection refused
 
-Ensure Auth Proxy is running:
+Check your AlloyDB instance URI and ensure Public IP is enabled:
 ```bash
-ps aux | grep alloydb-auth-proxy
+gcloud alloydb instances list --format="value(name,state)"
 ```
 
 ### Authentication failed
@@ -240,7 +251,7 @@ Verify data was seeded:
 SELECT COUNT(*) FROM inventory;
 ```
 
-Should return 8 (or more).
+Should return 20.
 
 ### Slow queries
 
@@ -261,6 +272,6 @@ Typical query latency:
 ## Learn More
 
 - [AlloyDB AI Documentation](https://cloud.google.com/alloydb/docs/ai)
+- [AlloyDB Python Connector](https://github.com/GoogleCloudPlatform/alloydb-python-connector)
 - [ScaNN Overview](https://cloud.google.com/alloydb/docs/ai/work-with-embeddings)
 - [Vertex AI Embeddings](https://cloud.google.com/vertex-ai/docs/generative-ai/embeddings/get-text-embeddings)
-- [pgvector Extension](https://github.com/pgvector/pgvector)
