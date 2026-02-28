@@ -646,6 +646,18 @@ async def analyze_image(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/deployer")
+async def deployer_info():
+    """Return deployer credit info for the sharing popup."""
+    deployer_name = os.environ.get("DEPLOYER_NAME", "")
+    return {
+        "name": deployer_name,
+        "codelab_url": "https://codelabs.developers.google.com/visual-commerce-gemini-3-alloydb",
+        "code_vipassana_url": "https://www.codevipassana.dev/",
+        "show": bool(deployer_name)
+    }
+
+
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint."""

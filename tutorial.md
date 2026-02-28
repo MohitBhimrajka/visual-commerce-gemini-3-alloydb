@@ -200,6 +200,24 @@ Wait ~10 seconds, then open **Web Preview** (👁️) → **Preview on port 8080
    - System places an autonomous order
 3. Toggle **DEMO mode** to pause at each stage
 
+## 🎁 Bonus: Deploy to Cloud Run
+
+> **Optional** — Everything works locally! But if you'd like to share your creation:
+
+```bash
+sh deploy/deploy.sh
+```
+
+The script reads your `.env`, asks for your name, and deploys to Cloud Run. When anyone opens your URL, they'll see a popup saying:
+
+> 🚀 **Deployed by *Your Name*** — Powered by Gemini 3 Flash · AlloyDB AI · A2A Protocol
+> *Completed as part of Code Vipassana Season 14*
+> **[Try the codelab yourself →]**
+
+After they dismiss it, a small persistent badge stays at the bottom: *"Deployed by Your Name · Code Vipassana S14 · Learn how →"*
+
+> **Completed as part of [Code Vipassana Season 14](https://www.codevipassana.dev/)**
+
 ## What Just Happened?
 
 Congratulations! You've built an **agentic AI system** that:

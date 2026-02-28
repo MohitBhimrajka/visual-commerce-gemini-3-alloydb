@@ -23,7 +23,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Initialize AlloyDB Connector once (reuse across requests)
-connector = Connector()
+# Use 'lazy' refresh strategy for serverless environments (Cloud Run)
+# to avoid CPU throttling errors during background refresh
+connector = Connector(refresh_strategy="lazy")
 
 
 def get_connection():
@@ -49,7 +51,7 @@ def get_connection():
         user=os.environ.get("DB_USER", "postgres"),
         password=os.environ.get("DB_PASS", ""),
         db=os.environ.get("DB_NAME", "postgres"),
-        ip_type="PUBLIC",  # Cloud Shell uses Public IP; change to "PRIVATE" for Cloud Run
+        ip_type=os.environ.get("ALLOYDB_IP_TYPE", "PUBLIC"),
     )
     return conn
 
