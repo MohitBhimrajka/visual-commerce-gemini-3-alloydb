@@ -29,84 +29,126 @@ sh setup.sh
 
 - Validates your environment (gcloud, Python, project settings)
 - Prompts you for your Gemini API key (paste the key from previous step)
-- Asks permission to clone the AlloyDB setup tool (press Y to confirm)
-- Clones the lightweight infrastructure provisioning tool (~2 MB)
-- Launches the infrastructure provisioning UI on port 8080
-- This takes **~15-20 minutes total** (perfect time for a coffee break ☕)
-
-**Interactive prompts:**
-1. When prompted for your API key → Paste it and press Enter
-2. When asked to clone the setup tool → Press Y to confirm
+- Checks and enables required APIs
+- Auto-detects your AlloyDB instance URI (or prompts you to enter it)
+- Creates the `.env` configuration file
 
 **If you need to restart:**
-- If the script gets stuck or fails, you can safely restart by running `sh setup.sh` again
-- The script will detect existing AlloyDB instances and skip provisioning
-- You won't need to redeploy infrastructure - it picks up where you left off
+- You can safely re-run `sh setup.sh` — it loads existing `.env` values
 
-**Common issue - Binary corruption:**
-If you see "Bus error" when starting the Auth Proxy:
+## Provision AlloyDB (if needed)
+
+If you don't have an AlloyDB instance yet, provision one using the setup tool:
+
+1. In a new terminal tab, clone and run:
+
 ```bash
-rm alloydb-auth-proxy
-sh setup.sh
+git clone https://github.com/AbiramiSukumaran/easy-alloydb-setup.git
+cd easy-alloydb-setup
+sh run.sh
 ```
-The script will re-download the correct binary for your system.
 
-## Access the Setup UI
+2. Open **Web Preview** (👁️) → **Preview on port 8080**
+3. Enter your **Project ID**, select **Region** (e.g., `us-central1`), set a **Password**
+4. Click **Start Deployment** (~15 minutes)
 
-Once you see the message **"Starting infrastructure setup UI..."**:
+> **⚠️ SAVE YOUR PASSWORD** — you'll need it for AlloyDB Studio and your `.env` file.
 
-1. Click the **Web Preview** button (eye icon 👁️) in the Cloud Shell toolbar
-2. Select **"Preview on port 8080"**
-3. The AlloyDB provisioning UI will open in a new tab
+5. Once done, **enable Public IP** on your AlloyDB instance:
+   - Go to [AlloyDB Console](https://console.cloud.google.com/alloydb/clusters)
+   - Click your instance → **Edit** → Enable **Public IP** → **Update**
 
-## Configure & Deploy Infrastructure
+6. Grant Vertex AI permissions:
 
-In the provisioning UI, you'll see a form:
+```bash
+PROJECT_ID=$(gcloud config get-value project)
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:service-$(gcloud projects describe $PROJECT_ID --format="value(projectNumber)")@gcp-sa-alloydb.iam.gserviceaccount.com" \
+  --role="roles/aiplatform.user"
+```
 
-**Fill in these fields:**
+7. Update your `.env` file with the AlloyDB details, then re-run `sh setup.sh`
 
-1. **Project ID:** Should be auto-filled with your current project
-2. **Region:** Select `us-central1` (or your preferred region)
-3. **Database Password:** 
-   - Create a **strong password**
-   - **SAVE THIS PASSWORD** - you'll need it in the next step
-   - This is the ONLY credential you need to remember
+## Set Up the Database
 
-**Click "Start Deployment"**
+Connect to **AlloyDB Studio** (in the AlloyDB Console → your instance → AlloyDB Studio). Sign in with username `postgres` and your password.
 
-The deployment creates:
-- VPC network with subnets
-- Private Service Access
-- AlloyDB Cluster
-- AlloyDB Primary Instance
+Run these SQL blocks **one at a time** in AlloyDB Studio:
 
-**This takes approximately 15 minutes.** You'll see progress updates in the UI.
+**1. Enable extensions:**
+```sql
+CREATE EXTENSION IF NOT EXISTS google_ml_integration CASCADE;
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS alloydb_scann CASCADE;
+```
 
-## Complete Setup & Seed Database
+**2. Create the inventory table:**
+```sql
+DROP TABLE IF EXISTS inventory;
+CREATE TABLE inventory (
+    id SERIAL PRIMARY KEY,
+    part_name TEXT NOT NULL,
+    supplier_name TEXT NOT NULL,
+    description TEXT,
+    stock_level INT DEFAULT 0,
+    part_embedding vector(768)
+);
+```
 
-Once the deployment finishes in the UI, **switch back to your Cloud Shell terminal** — it will have automatically detected that AlloyDB is ready and moved on.
+**3. Insert sample data (20 items):**
+```sql
+INSERT INTO inventory (part_name, supplier_name, description, stock_level) VALUES
+('Cardboard Shipping Box Large', 'Packaging Solutions Inc', 'Heavy-duty corrugated cardboard shipping container, 24x18x12 inches', 250),
+('Warehouse Storage Container', 'Industrial Supply Co', 'Stackable plastic storage bin with snap-lock lid, blue', 180),
+('Product Shipping Boxes', 'Acme Packaging', 'Medium corrugated boxes for warehouse storage, 18x14x10 inches', 320),
+('Industrial Widget X-9', 'Acme Corp', 'Heavy-duty industrial coupling for pneumatic systems', 50),
+('Precision Bolt M4', 'Global Fasteners Inc', 'Stainless steel M4 allen bolt, 20mm length, grade A2-70', 200),
+('Hexagonal Nut M6', 'Metro Supply Co', 'Galvanized steel hex nut M6, DIN 934 standard', 150),
+('Phillips Head Screw 3x20', 'Acme Corp', 'Zinc-plated Phillips head wood screw, 3mm x 20mm', 500),
+('Wooden Dowel 10mm', 'Craft Materials Ltd', 'Hardwood birch dowel rod, 10mm diameter x 300mm length', 80),
+('Rubber Gasket Small', 'SealTech Industries', 'Buna-N rubber gasket, 25mm OD x 15mm ID, oil resistant', 120),
+('Spring Tension 5kg', 'Mechanical Parts Co', 'Stainless steel compression spring, 5kg load capacity', 60),
+('Bearing 6204', 'Bearings Direct', 'Deep groove ball bearing 6204-2RS, 20x47x14mm sealed', 45),
+('Warehouse Shelf Boxes', 'Storage Systems Ltd', 'Standardized warehouse inventory boxes, corrugated, bulk pack', 400),
+('Inventory Container Units', 'Supply Chain Pros', 'Modular stackable storage units for warehouse racking', 95),
+('Aluminum Extrusion Bar', 'MetalWorks International', 'T-slot aluminum extrusion 20x20mm profile, 1 meter length', 110),
+('Cable Tie Pack 200mm', 'ElectroParts Depot', 'Nylon cable ties, 200mm x 4.8mm, UV resistant black, pack of 100', 600),
+('Hydraulic Hose 1/2 inch', 'FluidPower Systems', 'High-pressure hydraulic hose, 1/2 inch ID, 3000 PSI rated', 35),
+('Safety Goggles Clear', 'WorkSafe Equipment Co', 'ANSI Z87.1 rated clear safety goggles, anti-fog coating', 275),
+('Packing Tape Industrial', 'Packaging Solutions Inc', 'Heavy-duty polypropylene packing tape, 48mm x 100m, clear', 450),
+('Stainless Steel Sheet 1mm', 'MetalWorks International', '304 stainless steel sheet, 1mm thickness, 300x300mm', 70),
+('Silicone Sealant Tube', 'SealTech Industries', 'Industrial-grade RTV silicone sealant, 300ml cartridge, grey', 190);
+```
 
-**What happens automatically:**
+**4. Grant permission and generate embeddings:**
+```sql
+GRANT EXECUTE ON FUNCTION embedding TO postgres;
 
-1. The setup script detects AlloyDB is READY and stops the UI server for you
-2. It auto-detects your AlloyDB instance (cluster, region, project)
-3. **When prompted for password:** Enter the password you saved in the previous step
-4. The script then:
-   - Sets up the AlloyDB Auth Proxy (with secure mTLS connection)
-   - Seeds the database with 8 sample inventory parts
-   - Creates the ScaNN vector index for fast semantic search
+UPDATE inventory
+SET part_embedding = ai.embedding('text-embedding-005', part_name || '. ' || description)::vector
+WHERE part_embedding IS NULL;
+```
 
-**Wait for the message:** `✅ Database seeded successfully!`
+**5. Create the ScaNN index:**
+```sql
+SET scann.allow_blocked_operations = true;
+CREATE INDEX IF NOT EXISTS idx_inventory_scann
+ON inventory USING scann (part_embedding cosine)
+WITH (num_leaves=5, quantizer='sq8');
+```
+
+**6. Verify — you should see 20 rows with embeddings:**
+```sql
+SELECT part_name, supplier_name, (part_embedding IS NOT NULL) as has_embedding FROM inventory ORDER BY id;
+```
 
 ## Enable Memory (Code Change 1)
 
-Time to awaken the agent's memory! The Supplier Agent needs to search millions of parts using **vector similarity**.
+Time to awaken the agent's memory! The Supplier Agent needs to search parts using **vector similarity**.
 
 **Open the file:** `agents/supplier-agent/inventory.py`
 
-**Find line ~45** with the `TODO` comment and the placeholder query.
-
-**Replace the TODO section** with this ScaNN vector query:
+**Find the TODO** in the `find_supplier()` function (around line 60-70) and replace the placeholder:
 
 ```python
 sql = """
@@ -117,52 +159,37 @@ ORDER BY part_embedding <=> %s::vector
 LIMIT 1;
 """
 cursor.execute(sql, (embedding_vector, embedding_vector))
-return cursor.fetchone()
 ```
 
 **Save the file** (Ctrl+S or Cmd+S)
 
-**What this does:** The `<=>` operator performs cosine distance calculation using AlloyDB's ScaNN index, enabling lightning-fast semantic search across millions of vectors.
+The `<=>` operator performs cosine distance calculation using AlloyDB's ScaNN index.
 
 ## Enable Vision (Code Change 2)
 
-Now let's awaken the agent's eyes! The Vision Agent uses Gemini 3 Flash with **Code Execution** for deterministic counting.
+Now let's awaken the agent's eyes! The Vision Agent uses Gemini 3 Flash with **Code Execution**.
 
 **Open the file:** `agents/vision-agent/agent.py`
 
-**Find the `GenerateContentConfig` section** (around line 35-45).
+**Find the `GenerateContentConfig` section** (around line 68-78). **Uncomment** both:
 
-You'll see two commented blocks. **Uncomment both:**
+1. The `thinking_config` block
+2. The `tools` block
 
-1. The `thinking_config` block:
-```python
-thinking_config=types.ThinkingConfig(
-    thinking_level=types.ThinkingLevel.LOW
-),
-```
+**Save the file**
 
-2. The `tools` block:
-```python
-tools=[types.Tool(code_execution=types.ToolCodeExecution())]
-```
-
-**Save the file** (Ctrl+S or Cmd+S)
-
-**What this does:** Code Execution allows Gemini to write Python (OpenCV) to count items deterministically instead of guessing. ThinkingConfig enables deep reasoning before acting.
+Code Execution allows Gemini to write Python to count items deterministically instead of guessing.
 
 ## Create the Agent Card
 
-The A2A Protocol uses **agent cards** for discovery. Each agent exposes its capabilities via `/.well-known/agent-card.json`.
+The A2A Protocol uses **agent cards** for discovery.
 
-**First, copy the skeleton:**
-
+**Copy the skeleton:**
 ```bash
 cp agents/supplier-agent/agent_card_skeleton.json agents/supplier-agent/agent_card.json
 ```
 
-**Now open:** `agents/supplier-agent/agent_card.json`
-
-**Replace the entire contents** with:
+**Open** `agents/supplier-agent/agent_card.json` and **replace contents** with:
 
 ```json
 {
@@ -181,81 +208,32 @@ cp agents/supplier-agent/agent_card_skeleton.json agents/supplier-agent/agent_ca
 
 **Save the file**
 
-**What this does:** The Control Tower will discover this agent automatically by reading its card. No hardcoded endpoints or SDKs needed!
-
 ## Start All Services
 
-Time to bring everything online! Run the master start script:
+Time to bring everything online!
 
 ```bash
 sh run.sh
 ```
 
-**This starts 4 services:**
-
-- **AlloyDB Auth Proxy** (port 5432) - Secure database connection
-- **Vision Agent** (port 8081) - Gemini 3 Flash with Code Execution
-- **Supplier Agent** (port 8082) - AlloyDB ScaNN vector search
-- **Control Tower** (port 8080) - WebSocket orchestration UI
-
-**Wait ~10 seconds** for all services to initialize. You'll see health check confirmations for each service.
-
-## Access the Control Tower
-
-The Control Tower is your real-time dashboard for the autonomous supply chain.
-
-**To access it:**
-
-1. Click the **Web Preview** button (👁️) in the Cloud Shell toolbar
-2. Select **"Preview on port 8080"**
-3. The Control Tower dashboard will open
-
-**You'll see:**
-- Three agent status cards (Vision, Supplier, Action)
-- A progress timeline
-- A chat log for real-time updates
+Wait ~10 seconds, then open **Web Preview** (👁️) → **Preview on port 8080**.
 
 ## Test the Autonomous Workflow
 
-Time to see the agents in action!
-
-**Steps:**
-
-1. **Upload an image:**
-   - Click the upload area or drag & drop
-   - Use a warehouse/shelf image (or sample images in `test-images/` folder)
-
-2. **Click "Initiate Autonomous Workflow"**
-
-3. **Watch the magic happen in real-time:**
-   - **Discovery:** Frontend discovers agents via A2A protocol
-   - **Vision Analysis:** Gemini 3 Flash writes Python code to count items deterministically
-   - **Memory Search:** AlloyDB ScaNN finds the exact part match in milliseconds
-   - **Autonomous Action:** System places order without human intervention
-
-**You'll see:**
-- Agent cards update with live status
-- Code execution output displayed with syntax highlighting
-- Vector search results with similarity scores
-- Final order confirmation
+1. **Upload an image** or click a sample image
+2. **Watch the magic:**
+   - Vision Agent writes Python code to count items
+   - Supplier Agent finds the nearest part match via ScaNN
+   - System places an autonomous order
+3. Toggle **DEMO mode** to pause at each stage
 
 ## What Just Happened?
 
 Congratulations! You've built an **agentic AI system** that:
 
-✅ **Sees deterministically** - Gemini 3 Flash Code Execution writes OpenCV code to count pixels (no hallucinations)
-
-✅ **Remembers semantically** - AlloyDB ScaNN performs vector search across millions of parts in milliseconds
-
-✅ **Acts autonomously** - A2A Protocol enables dynamic agent discovery and coordination
-
-✅ **Operates in real-time** - WebSocket streaming shows you every step of the autonomous loop
-
-### The Hybrid Architecture
-
-- **Vision Agent:** Uses Gemini API (API key) - simple, free tier available
-- **Supplier Agent:** Uses GCP (Vertex AI + AlloyDB) - enterprise-grade, compliance-ready
-
-This is **deterministic AI engineering** - building systems that don't guess. You've moved from "Generative AI" to "Agentic AI."
+✅ **Sees deterministically** — Gemini 3 Flash Code Execution (no hallucinations)
+✅ **Remembers semantically** — AlloyDB ScaNN vector search in milliseconds
+✅ **Acts autonomously** — A2A Protocol for dynamic agent discovery
+✅ **Operates in real-time** — WebSocket streaming
 
 🎉 **Your autonomous supply chain is now operational!**

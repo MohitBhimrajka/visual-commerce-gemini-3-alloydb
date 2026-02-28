@@ -57,16 +57,16 @@ else
 fi
 
 # ============================================================================
-# Stop Auth Proxy (before cluster is deleted so it doesn't keep retrying)
+# Stop Running Services
 # ============================================================================
 echo ""
-echo "🔌 Stopping AlloyDB Auth Proxy..."
-PROXY_PID=$(pgrep -f "alloydb-auth-proxy" 2>/dev/null | head -n 1)
-if [ -n "$PROXY_PID" ]; then
-    kill "$PROXY_PID" 2>/dev/null || true
-    echo "   ✅ Auth Proxy stopped (PID: $PROXY_PID)"
+echo "🔌 Stopping running services..."
+SERVICE_PIDS=$(pgrep -f "uvicorn" 2>/dev/null)
+if [ -n "$SERVICE_PIDS" ]; then
+    pkill -f uvicorn 2>/dev/null || true
+    echo "   ✅ Stopped running agent services"
 else
-    echo "   ℹ️  Auth Proxy not running"
+    echo "   ℹ️  No services running"
 fi
 
 # ============================================================================
@@ -137,7 +137,6 @@ fi
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🗂️  Local files that can be removed:"
-echo "   - alloydb-auth-proxy  (downloaded binary)"
 echo "   - easy-alloydb-setup/ (cloned setup tool, ~2 MB)"
 echo "   - logs/               (runtime logs)"
 echo "   - .env                (credentials & config)"
@@ -147,7 +146,6 @@ read -p "Remove local files? (y/N): " -n 1 -r
 echo ""
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    [ -f "$SCRIPT_DIR/alloydb-auth-proxy" ]    && rm -f "$SCRIPT_DIR/alloydb-auth-proxy"    && echo "   ✅ Removed alloydb-auth-proxy"
     [ -d "$SCRIPT_DIR/easy-alloydb-setup" ]    && rm -rf "$SCRIPT_DIR/easy-alloydb-setup"   && echo "   ✅ Removed easy-alloydb-setup/"
     [ -d "$SCRIPT_DIR/logs" ]                  && rm -rf "$SCRIPT_DIR/logs"                 && echo "   ✅ Removed logs/"
     [ -f "$SCRIPT_DIR/.env" ]                  && rm -f "$SCRIPT_DIR/.env"                  && echo "   ✅ Removed .env"

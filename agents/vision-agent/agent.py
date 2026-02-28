@@ -69,12 +69,12 @@ def analyze_image(image_bytes: bytes, query: str = None, mime_type: str = "image
             system_instruction=[types.Part.from_text(text=SYSTEM_INSTRUCTION)],
             temperature=0,
             # CODELAB STEP 1: Uncomment to enable reasoning
-            # thinking_config=types.ThinkingConfig(
-            #    thinking_level="LOW",     # Valid: "MINIMAL", "LOW", "MEDIUM", "HIGH"
-            #    include_thoughts=False    # Set to True for debugging
-            #),
+            thinking_config=types.ThinkingConfig(
+               thinking_level="MINIMAL",     # Valid: "MINIMAL", "LOW", "MEDIUM", "HIGH"
+               include_thoughts=False    # Set to True for debugging
+            ),
             # CODELAB STEP 2: Uncomment to enable code execution
-            # tools=[types.Tool(code_execution=types.ToolCodeExecution)]
+            tools=[types.Tool(code_execution=types.ToolCodeExecution)]
         ),
     )
 

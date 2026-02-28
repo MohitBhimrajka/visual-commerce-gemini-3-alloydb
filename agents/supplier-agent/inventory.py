@@ -1,6 +1,7 @@
 """
 Supplier Agent: AlloyDB vector search for finding parts and suppliers.
 Uses ScaNN (<=> cosine distance) for high-speed semantic retrieval.
+Connects via AlloyDB Python Connector (no Auth Proxy needed).
 """
 import json
 import logging
@@ -8,8 +9,8 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv, find_dotenv
-import psycopg2
-from pgvector.psycopg2 import register_vector
+import pg8000
+from google.cloud.alloydbconnector import Connector
 
 # Load environment variables from .env file (searches up directory tree)
 load_dotenv(find_dotenv(usecwd=True))
@@ -21,17 +22,27 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Initialize AlloyDB Connector once (reuse across requests)
+connector = Connector()
+
 
 def get_connection():
-    """Connect to AlloyDB via Auth Proxy (localhost)."""
-    conn = psycopg2.connect(
-        host="127.0.0.1",
-        port=5432,
-        user="postgres",
+    """Connect to AlloyDB via the Python Connector (IAM-authenticated, no proxy needed)."""
+    inst_uri = os.environ.get("ALLOYDB_INSTANCE_URI", "")
+    if not inst_uri:
+        raise ValueError(
+            "ALLOYDB_INSTANCE_URI not set. "
+            "Format: projects/PROJECT/locations/REGION/clusters/CLUSTER/instances/INSTANCE"
+        )
+
+    conn = connector.connect(
+        inst_uri,
+        "pg8000",
+        user=os.environ.get("DB_USER", "postgres"),
         password=os.environ.get("DB_PASS", ""),
-        dbname="postgres",
+        db=os.environ.get("DB_NAME", "postgres"),
+        ip_type="PUBLIC",  # Cloud Shell uses Public IP; change to "PRIVATE" for Cloud Run
     )
-    register_vector(conn)
     return conn
 
 
@@ -40,33 +51,22 @@ def find_supplier(embedding_vector: list[float]) -> tuple | None:
     Find the nearest supplier for the given part embedding using ScaNN.
     """
     logger.info(f"Searching inventory with embedding (dimension: {len(embedding_vector)})")
-    
+
     conn = get_connection()
     try:
-        with conn.cursor() as cursor:
-            # ============================================================
-            # CODELAB STEP 1: Implement ScaNN Vector Search
-            # ============================================================
-            # TODO: Replace this placeholder query with ScaNN vector search
-            # 
-            # Current behavior: Returns the first row (no similarity matching)
-            # Expected behavior: Return the NEAREST match using cosine distance
-            # 
-            # Hint: Use the <=> operator for cosine distance
-            # Hint: ORDER BY distance (ascending = closer match)
-            # Hint: PostgreSQL requires explicit cast: %s::vector
-            # 
-            # See codelab Step 5 for the complete implementation
-            # ============================================================
-            
-            sql = "SELECT part_name, supplier_name FROM inventory LIMIT 1;"
-            cursor.execute(sql)
-            result = cursor.fetchone()
-            
-            if result:
-                logger.warning("Using placeholder query - returns first row, not nearest match")
-            
-            return result
+        cursor = conn.cursor()
+        # ============================================================
+        # CODELAB STEP 1: Implement ScaNN Vector Search
+        # ============================================================
+        # TODO: Replace this placeholder query with ScaNN vector search
+        #
+        # The <=> operator computes cosine distance between vectors.
+        # ORDER BY <=> finds the nearest match (lowest distance).
+        # The ScaNN index automatically accelerates this query.
+
+        sql = "SELECT part_name, supplier_name FROM inventory LIMIT 1;"
+        cursor.execute(sql)
+        return cursor.fetchone()
     except Exception as e:
         logger.error(f"Database query failed: {e}")
         raise
@@ -84,7 +84,7 @@ def get_embedding(text: str) -> list[float]:
     project = os.environ.get("GOOGLE_CLOUD_PROJECT", "")
     logger.debug(f"get_embedding called with text: {text[:50]}...")
     logger.debug(f"Using GCP project: {project}")
-    
+
     try:
         # Initialize Gen AI client with Vertex AI
         client = genai.Client(
@@ -92,7 +92,7 @@ def get_embedding(text: str) -> list[float]:
             project=project,
             location="us-central1"
         )
-        
+
         # Generate embedding using text-embedding-005 (768 dimensions)
         response = client.models.embed_content(
             model="text-embedding-005",
@@ -102,7 +102,7 @@ def get_embedding(text: str) -> list[float]:
                 output_dimensionality=768
             )
         )
-        
+
         embedding_values = response.embeddings[0].values
         logger.info(f"Generated embedding with {len(embedding_values)} dimensions")
         return embedding_values
@@ -129,7 +129,8 @@ def main():
 
     result = find_supplier(test_embedding)
     if result:
-        part_name, supplier_name, distance = result
+        part_name, supplier_name = result[0], result[1]
+        distance = result[2] if len(result) > 2 else None
         output = {
             "part": part_name,
             "supplier": supplier_name,

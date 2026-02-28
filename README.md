@@ -39,10 +39,16 @@ A multi-agent system featuring:
 git clone https://github.com/MohitBhimrajka/visual-commerce-gemini-3-alloydb.git
 cd visual-commerce-gemini-3-alloydb
 
-# 2. Run setup (provisions infrastructure + seeds database)
+# 2. Run setup (validates environment, enables APIs, creates .env)
 sh setup.sh
 
-# 3. Start all services
+# 3. Provision AlloyDB (if not already done)
+# See codelab for easy-alloydb-setup instructions
+
+# 4. Set up database schema and data in AlloyDB Studio
+# See codelab for SQL steps
+
+# 5. Start all services
 sh run.sh
 ```
 
@@ -55,8 +61,9 @@ Open http://localhost:8080 to see the Control Tower.
 ```
 visual-commerce-gemini-3-alloydb/
 ├── README.md                    # You are here
-├── setup.sh                     # One-click setup script
-├── run.sh                       # One-click run script
+├── setup.sh                     # Environment setup script
+├── run.sh                       # Service startup script
+├── cleanup.sh                   # Resource cleanup script
 ├── .env.example                 # Environment variables template
 │
 ├── agents/                      # Agentic components
@@ -68,13 +75,12 @@ visual-commerce-gemini-3-alloydb/
 │   └── static/                  # Real-time UI
 │
 ├── database/                    # AlloyDB schema & seeding
-│   ├── seed.py                  # Database initialization
-│   └── seed_data.sql            # Schema definition
+│   ├── seed.py                  # Backup seeding script (uses AlloyDB Connector)
+│   └── seed_data.sql            # Schema + data (for AlloyDB Studio)
 │
 ├── test-images/                 # Sample warehouse images for testing
 │
 └── logs/                        # Runtime logs (gitignored)
-    ├── proxy.log
     ├── vision-agent.log
     ├── supplier-agent.log
     └── frontend.log
@@ -84,27 +90,46 @@ visual-commerce-gemini-3-alloydb/
 
 ### `sh setup.sh`
 
-1. **Validates environment** - Checks gcloud, APIs, project settings
-2. **Configures AlloyDB** - Prompts for Public IP and authorized networks (Cloud Shell auto-detects, local machine prompts for security settings)
-3. **Provisions infrastructure** - Creates AlloyDB instance (~15 min if new)
-4. **Seeds database with real embeddings** - Populates inventory with sample data using Google Gen AI SDK and text-embedding-005 (~10 seconds with parallel embedding generation)
-5. **Creates ScaNN index** - Builds high-performance vector search index
+1. **Validates environment** — Checks gcloud, APIs, project settings, Python 3
+2. **Enables APIs** — AlloyDB, Vertex AI, Compute Engine, Service Networking
+3. **Configures Gemini** — Prompts for your Gemini API key
+4. **Detects AlloyDB** — Auto-discovers instance URI or prompts for input
+5. **Creates .env** — Generates configuration file
 
 ### `sh run.sh`
 
-1. **Starts AlloyDB Auth Proxy** - Creates secure tunnel to database (auto-detects Public IP for Cloud Shell or local)
-2. **Launches Vision Agent** - Port 8081 (Gemini 3 Flash LOW thinking + Gemini 2.5 Flash Lite query generation)
-3. **Launches Supplier Agent** - Port 8082 (AlloyDB ScaNN with real semantic embeddings)
-4. **Starts Control Tower** - Port 8080 (FastAPI + WebSocket UI with automatic image compression)
+1. **Launches Vision Agent** — Port 8081 (Gemini 3 Flash LOW thinking + Gemini 2.5 Flash Lite query generation)
+2. **Launches Supplier Agent** — Port 8082 (AlloyDB ScaNN via Python Connector)
+3. **Starts Control Tower** — Port 8080 (FastAPI + WebSocket UI with automatic image compression)
+
+## Database Connection
+
+The Supplier Agent connects to AlloyDB via the **AlloyDB Python Connector** (no Auth Proxy needed):
+
+```python
+from google.cloud.alloydbconnector import Connector
+
+connector = Connector()
+conn = connector.connect(
+    inst_uri,         # projects/PROJECT/locations/REGION/clusters/CLUSTER/instances/INSTANCE
+    "pg8000",         # Driver
+    user="postgres",
+    password=DB_PASS,
+    ip_type="PUBLIC",  # Use "PRIVATE" for Cloud Run
+)
+```
+
+This handles IAM authentication, SSL/TLS, and connection routing automatically.
 
 ## Key Technologies
 
-- **Gemini 3 Flash** - AI model with LOW thinking level and code execution for deterministic vision analysis
-- **Gemini 2.5 Flash Lite** - Fast LLM for semantic query generation with structured outputs (Pydantic models)
-- **AlloyDB AI** - PostgreSQL-compatible database with ScaNN vector search (10x faster than HNSW)
-- **Vertex AI text-embedding-005** - Real semantic embeddings for accurate similarity matching
-- **A2A Protocol** - Agent-to-Agent communication standard for plug-and-play agent composition
-- **FastAPI** - Modern Python web framework with WebSocket support and PIL-based image compression
+- **Gemini 3 Flash** — AI model with LOW thinking level and code execution for deterministic vision analysis
+- **Gemini 2.5 Flash Lite** — Fast LLM for semantic query generation with structured outputs (Pydantic models)
+- **AlloyDB AI** — PostgreSQL-compatible database with ScaNN vector search (10x faster than HNSW)
+- **AlloyDB Python Connector** — Secure connection without Auth Proxy (IAM auth, managed SSL)
+- **Vertex AI text-embedding-005** — Real semantic embeddings for accurate similarity matching
+- **A2A Protocol** — Agent-to-Agent communication standard for plug-and-play agent composition
+- **FastAPI** — Modern Python web framework with WebSocket support and PIL-based image compression
 
 ## Troubleshooting
 
@@ -118,46 +143,13 @@ lsof -ti:8082 | xargs kill -9
 
 ### AlloyDB connection issues
 
-**Symptom**: `connection to server at 127.0.0.1, port 5432 failed`
-
-```bash
-# 1. Check if Auth Proxy is running
-ps aux | grep alloydb-auth-proxy
-
-# 2. Check proxy logs
-tail -50 logs/proxy.log
-```
+**Symptom**: `Connection refused` or `ALLOYDB_INSTANCE_URI not set`
 
 **Common causes:**
-
-1. **Auth Proxy not running** - Check: `ps aux | grep alloydb-auth-proxy`
-2. **Public IP not enabled** - Verify: `gcloud alloydb instances describe INSTANCE_NAME`
-3. **Authorized networks not configured (local machine only)**
-   - **Cloud Shell**: Works automatically via internal networking
-   - **Local machine**: Requires authorized external networks (setup.sh prompts for this)
-4. **Wrong password** - Check `.env`: `cat .env | grep DB_PASS`
-5. **Port 5432 in use** - Kill existing process: `lsof -ti:5432 | xargs kill -9`
-
-**Fix for local development:**
-- Re-run `sh setup.sh` to configure authorized networks
-- When prompted, choose option 1 (0.0.0.0/0) for development/testing
-- Note: Even with 0.0.0.0/0, Auth Proxy requires valid GCP credentials (ADC) + database password
-
-> **Why do I need the Auth Proxy?** AlloyDB's private IP (172.21.0.x) is only reachable from inside the VPC. The Auth Proxy creates a secure mTLS tunnel from `127.0.0.1:5432` to your AlloyDB instance. It auto-detects Public IP and connects securely.
-
-### Cloud Shell vs Local Development
-
-**Cloud Shell (Recommended)**:
-- Automatic networking configuration
-- **Custom VPC Note**: If your AlloyDB is in a custom VPC (not "default"), Cloud Shell will automatically use Public IP connection since it cannot reach custom VPCs via private IP
-- The setup script auto-detects this and configures the Auth Proxy accordingly
-
-**Local Machine**:
-- Requires AlloyDB Public IP enabled
-- Requires authorized external networks configured
-- During setup, you'll be prompted to:
-  - Enable Public IP (secure: mTLS + ADC + password)
-  - Configure authorized networks (0.0.0.0/0 for dev, or specific IP for security)
+1. **ALLOYDB_INSTANCE_URI not set** — Check `.env`: `cat .env | grep ALLOYDB_INSTANCE_URI`
+2. **Public IP not enabled** — Enable it in AlloyDB Console → Instance → Edit → Connectivity
+3. **Wrong password** — Check `.env`: `cat .env | grep DB_PASS`
+4. **Instance not ready** — Wait 1-2 minutes after provisioning
 
 ### Agent not responding
 
@@ -175,12 +167,11 @@ To avoid charges, run the cleanup script:
 sh cleanup.sh
 ```
 
-This stops the Auth Proxy, deletes the AlloyDB cluster, removes any deployed Cloud Run services, and optionally removes local files (binary, logs, `.env`).
+This deletes the AlloyDB cluster, removes any deployed Cloud Run services, and optionally removes local files (logs, `.env`).
 
 If you prefer a manual approach:
 
 ```bash
-# Replace with your cluster name (check .env for ALLOYDB_CLUSTER and ALLOYDB_REGION)
 gcloud alloydb clusters delete YOUR_CLUSTER_NAME \
   --region=YOUR_REGION \
   --force
@@ -203,6 +194,7 @@ gcloud alloydb clusters delete YOUR_CLUSTER_NAME \
   - ✅ 3-4x smaller memory footprint
   - ✅ 8x faster index builds
 - Understanding ScaNN: https://cloud.google.com/blog/products/databases/understanding-the-scann-index-in-alloydb
+- AlloyDB Python Connector: https://github.com/GoogleCloudPlatform/alloydb-python-connector
 - AlloyDB AI Documentation: https://cloud.google.com/alloydb/docs/ai
 - Best Practices: https://docs.cloud.google.com/alloydb/docs/ai/best-practices-tuning-scann
 

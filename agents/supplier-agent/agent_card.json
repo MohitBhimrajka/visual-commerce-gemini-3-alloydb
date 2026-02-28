@@ -1,0 +1,12 @@
+{
+  "name": "Acme Supplier Agent",
+  "description": "Autonomous fulfillment for industrial parts via AlloyDB ScaNN.",
+  "version": "1.0.0",
+  "skills": [{
+    "id": "search_inventory",
+    "name": "Search Inventory",
+    "description": "Searches warehouse database using AlloyDB ScaNN vector search.",
+    "tags": ["inventory", "search", "alloydb"],
+    "examples": ["Find stock for Industrial Widget X-9", "Who supplies ball bearings?"]
+  }]
+}
