@@ -162,11 +162,8 @@ if [ ${#MISSING_APIS[@]} -gt 0 ]; then
     read -p "Enable missing APIs automatically? (y/N): " -n 1 -r
     echo ""
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo "Enabling APIs..."
-        for api in "${MISSING_APIS[@]}"; do
-            echo "  Enabling $api..."
-            gcloud services enable "$api" --quiet
-        done
+        echo "Enabling APIs: ${MISSING_APIS[*]}..."
+        gcloud services enable "${MISSING_APIS[@]}" --quiet
         echo "✅ All APIs enabled"
     else
         echo "⚠️  Continuing without enabling APIs (may fail later)"
@@ -209,40 +206,62 @@ echo ""
 
 if [ -z "$ALLOYDB_INSTANCE_URI" ]; then
     echo "The Supplier Agent connects to AlloyDB via the Python Connector."
-    echo "You need the full instance URI from your AlloyDB setup."
-    echo ""
-    echo "Format: projects/PROJECT/locations/REGION/clusters/CLUSTER/instances/INSTANCE"
     echo ""
 
-    # Try to auto-detect
-    echo "🔍 Attempting to auto-detect AlloyDB instance..."
+    # Try to auto-detect existing instances
+    echo "🔍 Checking for existing AlloyDB instances..."
     INSTANCES=$(gcloud alloydb instances list --format="value(name)" 2>/dev/null || true)
 
     if [ -n "$INSTANCES" ]; then
         INSTANCE_COUNT=$(echo "$INSTANCES" | wc -l | tr -d ' ')
-        if [ "$INSTANCE_COUNT" -eq 1 ]; then
-            ALLOYDB_INSTANCE_URI="$INSTANCES"
-            echo "✅ Found instance: $ALLOYDB_INSTANCE_URI"
-            echo ""
-            read -p "Use this instance? (Y/n): " -n 1 -r
-            echo ""
-            if [[ $REPLY =~ ^[Nn]$ ]]; then
-                read -p "Enter your AlloyDB instance URI: " ALLOYDB_INSTANCE_URI
-            fi
-        else
-            echo "Found $INSTANCE_COUNT instances:"
-            i=1
-            while IFS= read -r instance; do
-                echo "  $i) $instance"
-                i=$((i + 1))
-            done <<< "$INSTANCES"
-            echo ""
-            read -p "Select instance number: " CHOICE
+        echo ""
+        echo "Found $INSTANCE_COUNT existing instance(s):"
+        echo ""
+        i=1
+        while IFS= read -r instance; do
+            echo "  $i) $instance"
+            i=$((i + 1))
+        done <<< "$INSTANCES"
+        echo "  $i) Enter details manually"
+        echo "  $((i + 1))) Skip for now (set up AlloyDB in the next step)"
+        echo ""
+        read -p "Select an option: " CHOICE
+
+        if [ "$CHOICE" -le "$INSTANCE_COUNT" ] 2>/dev/null; then
             ALLOYDB_INSTANCE_URI=$(echo "$INSTANCES" | sed -n "${CHOICE}p")
+            echo "✅ Using: $ALLOYDB_INSTANCE_URI"
+        elif [ "$CHOICE" -eq "$((INSTANCE_COUNT + 1))" ] 2>/dev/null; then
+            # Manual entry — fall through to component entry below
+            ALLOYDB_INSTANCE_URI=""
+        else
+            # Skip
+            echo ""
+            echo "⏭️  Skipping AlloyDB setup for now."
+            echo "   After provisioning AlloyDB (next step in the codelab),"
+            echo "   re-run this script or manually update your .env file."
+            ALLOYDB_INSTANCE_URI="PLACEHOLDER_RUN_SETUP_AGAIN_AFTER_ALLOYDB"
         fi
-    else
-        echo "No AlloyDB instance found automatically."
-        read -p "Enter your AlloyDB instance URI: " ALLOYDB_INSTANCE_URI
+    fi
+
+    # If still empty (no instances found OR user chose manual entry), prompt for components
+    if [ -z "$ALLOYDB_INSTANCE_URI" ]; then
+        echo ""
+        echo "Enter your AlloyDB details (from the easy-alloydb-setup output):"
+        echo ""
+        echo "  Project ID:    $PROJECT"
+        read -p "  Region         (e.g. us-central1): " ALLOYDB_REGION
+        read -p "  Cluster name   (e.g. my-alloydb-cluster): " ALLOYDB_CLUSTER
+        read -p "  Instance name  (e.g. my-alloydb-instance): " ALLOYDB_INSTANCE
+
+        if [ -n "$ALLOYDB_REGION" ] && [ -n "$ALLOYDB_CLUSTER" ] && [ -n "$ALLOYDB_INSTANCE" ]; then
+            ALLOYDB_INSTANCE_URI="projects/${PROJECT}/locations/${ALLOYDB_REGION}/clusters/${ALLOYDB_CLUSTER}/instances/${ALLOYDB_INSTANCE}"
+            echo ""
+            echo "✅ Constructed URI: $ALLOYDB_INSTANCE_URI"
+        else
+            echo ""
+            echo "⚠️  Missing details. Setting placeholder — update .env after AlloyDB setup."
+            ALLOYDB_INSTANCE_URI="PLACEHOLDER_RUN_SETUP_AGAIN_AFTER_ALLOYDB"
+        fi
     fi
     export ALLOYDB_INSTANCE_URI
 else
@@ -252,8 +271,13 @@ fi
 # Get database password
 if [ -z "$DB_PASS" ]; then
     echo ""
-    read -s -p "Enter your AlloyDB database password: " DB_PASS
+    echo "Enter the password you set (or will set) during AlloyDB provisioning."
+    read -s -p "Database password (or Enter to skip): " DB_PASS
     echo ""
+    if [ -z "$DB_PASS" ]; then
+        DB_PASS="PLACEHOLDER_SET_AFTER_ALLOYDB_SETUP"
+        echo "⏭️  Skipping password — update .env after AlloyDB setup."
+    fi
     export DB_PASS
 fi
 
