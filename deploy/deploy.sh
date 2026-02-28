@@ -90,10 +90,31 @@ echo "☁️  Deploying to Cloud Run (this takes 3-5 minutes)..."
 echo ""
 
 # ── Enable required APIs ─────────────────────────────────────
+echo "🔧 Enabling APIs..."
 gcloud services enable run.googleapis.com \
                        cloudbuild.googleapis.com \
                        artifactregistry.googleapis.com \
     --project "$PROJECT_ID" --quiet
+
+# ── Grant required IAM roles ────────────────────────────────
+echo "🔑 Granting IAM roles to Cloud Build service account..."
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
+SA_EMAIL="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+
+# Cloud Run Builder — required for gcloud run deploy --source
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$SA_EMAIL" \
+    --role="roles/run.builder" \
+    --quiet 2>/dev/null || true
+
+# AlloyDB Client — required for the Python Connector at runtime
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$SA_EMAIL" \
+    --role="roles/alloydb.client" \
+    --quiet 2>/dev/null || true
+
+echo "✅ IAM roles granted (may take ~1 min to propagate)"
+echo ""
 
 # ── Deploy ───────────────────────────────────────────────────
 gcloud run deploy "$SERVICE_NAME" \
@@ -115,15 +136,6 @@ DB_USER="${DB_USER:-postgres}",\
 DB_PASS="$DB_PASS",\
 DB_NAME="${DB_NAME:-postgres}",\
 ALLOYDB_IP_TYPE=PUBLIC
-
-# ── Grant AlloyDB Client role ────────────────────────────────
-echo ""
-echo "🔑 Granting AlloyDB Client role to Cloud Run service account..."
-PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-    --role="roles/alloydb.client" \
-    --quiet 2>/dev/null || true
 
 # ── Get service URL ──────────────────────────────────────────
 SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
