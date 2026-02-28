@@ -28,12 +28,20 @@ connector = Connector()
 
 def get_connection():
     """Connect to AlloyDB via the Python Connector (IAM-authenticated, no proxy needed)."""
+    # Build instance URI from component env vars (or use pre-built if set)
     inst_uri = os.environ.get("ALLOYDB_INSTANCE_URI", "")
     if not inst_uri:
-        raise ValueError(
-            "ALLOYDB_INSTANCE_URI not set. "
-            "Format: projects/PROJECT/locations/REGION/clusters/CLUSTER/instances/INSTANCE"
-        )
+        project = os.environ.get("GOOGLE_CLOUD_PROJECT", "")
+        region = os.environ.get("ALLOYDB_REGION", "")
+        cluster = os.environ.get("ALLOYDB_CLUSTER", "")
+        instance = os.environ.get("ALLOYDB_INSTANCE", "")
+        if project and region and cluster and instance:
+            inst_uri = f"projects/{project}/locations/{region}/clusters/{cluster}/instances/{instance}"
+        else:
+            raise ValueError(
+                "AlloyDB not configured. Set ALLOYDB_REGION, ALLOYDB_CLUSTER, "
+                "and ALLOYDB_INSTANCE in your .env file."
+            )
 
     conn = connector.connect(
         inst_uri,

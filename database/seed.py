@@ -27,9 +27,16 @@ def get_connection():
     """Connect to AlloyDB via the Python Connector."""
     inst_uri = os.environ.get("ALLOYDB_INSTANCE_URI", "")
     if not inst_uri:
-        print("Error: ALLOYDB_INSTANCE_URI not set.")
-        print("Format: projects/PROJECT/locations/REGION/clusters/CLUSTER/instances/INSTANCE")
-        sys.exit(1)
+        project = os.environ.get("GOOGLE_CLOUD_PROJECT", "")
+        region = os.environ.get("ALLOYDB_REGION", "")
+        cluster = os.environ.get("ALLOYDB_CLUSTER", "")
+        instance = os.environ.get("ALLOYDB_INSTANCE", "")
+        if project and region and cluster and instance:
+            inst_uri = f"projects/{project}/locations/{region}/clusters/{cluster}/instances/{instance}"
+        else:
+            print("Error: AlloyDB not configured.")
+            print("Set ALLOYDB_REGION, ALLOYDB_CLUSTER, and ALLOYDB_INSTANCE in .env")
+            sys.exit(1)
 
     return connector.connect(
         inst_uri,
