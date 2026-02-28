@@ -100,11 +100,11 @@ This calls Vertex AI directly from SQL — no Python code needed.
 
 ## Troubleshooting
 
-### ALLOYDB_INSTANCE_URI not set
+### AlloyDB not configured
 
-Check your `.env` file:
+Check your `.env` file has the correct values:
 ```bash
-cat .env | grep ALLOYDB_INSTANCE_URI
+cat .env | grep ALLOYDB
 ```
 
 ### Connection refused

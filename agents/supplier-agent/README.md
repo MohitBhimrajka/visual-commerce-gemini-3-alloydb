@@ -76,7 +76,9 @@ sh run.sh
 pip install -r requirements.txt
 export GOOGLE_CLOUD_PROJECT=$(gcloud config get-value project)
 export DB_PASS='your-password'
-export ALLOYDB_INSTANCE_URI='projects/PROJECT/locations/REGION/clusters/CLUSTER/instances/INSTANCE'
+export ALLOYDB_REGION='us-central1'
+export ALLOYDB_CLUSTER='my-cluster'
+export ALLOYDB_INSTANCE='my-instance'
 uvicorn main:asgi_app --host 0.0.0.0 --port 8082
 ```
 
@@ -155,7 +157,9 @@ Or with pre-computed embedding:
 # Required
 export GOOGLE_CLOUD_PROJECT=your-project-id
 export DB_PASS=your-database-password
-export ALLOYDB_INSTANCE_URI=projects/PROJECT/locations/REGION/clusters/CLUSTER/instances/INSTANCE
+export ALLOYDB_REGION=us-central1
+export ALLOYDB_CLUSTER=my-cluster
+export ALLOYDB_INSTANCE=my-instance
 
 # Optional
 export SUPPLIER_AGENT_URL=http://localhost:8082

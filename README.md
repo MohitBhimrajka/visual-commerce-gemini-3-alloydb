@@ -143,10 +143,10 @@ lsof -ti:8082 | xargs kill -9
 
 ### AlloyDB connection issues
 
-**Symptom**: `Connection refused` or `ALLOYDB_INSTANCE_URI not set`
+**Symptom**: `Connection refused` or `AlloyDB not configured`
 
 **Common causes:**
-1. **ALLOYDB_INSTANCE_URI not set** — Check `.env`: `cat .env | grep ALLOYDB_INSTANCE_URI`
+1. **AlloyDB not configured** — Check `.env` has correct `ALLOYDB_REGION`, `ALLOYDB_CLUSTER`, and `ALLOYDB_INSTANCE`
 2. **Public IP not enabled** — Enable it in AlloyDB Console → Instance → Edit → Connectivity
 3. **Wrong password** — Check `.env`: `cat .env | grep DB_PASS`
 4. **Instance not ready** — Wait 1-2 minutes after provisioning
