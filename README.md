@@ -167,7 +167,13 @@ curl http://localhost:8080/api/health
 sh deploy/deploy.sh
 ```
 
-The script reads your `.env`, asks for your name, and deploys to Cloud Run. Share the URL — visitors see a popup crediting you as the person who completed this codelab, with a link for them to try it too!
+The script reads your `.env`, asks for your name, and deploys to Cloud Run. When anyone opens your URL, they'll see a popup:
+
+> 🚀 **Deployed by *Your Name*** — Powered by Gemini 3 Flash · AlloyDB AI · A2A Protocol
+> *Completed as part of Code Vipassana Season 14*
+> **[Try the codelab yourself →]**
+
+After dismissing, a persistent bottom badge stays: *"Deployed by Your Name · Code Vipassana S14 · Learn how →"*
 
 > **Completed as part of [Code Vipassana Season 14](https://www.codevipassana.dev/)**
 
