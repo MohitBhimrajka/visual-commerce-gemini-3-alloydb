@@ -60,6 +60,10 @@ def find_supplier(embedding_vector: list[float]) -> tuple | None:
     """
     logger.info(f"Searching inventory with embedding (dimension: {len(embedding_vector)})")
 
+    # pg8000 converts Python lists to PostgreSQL array format {0.1,0.1,...}
+    # but pgvector expects [0.1,0.1,...] — so we convert to string first
+    embedding_str = "[" + ",".join(str(v) for v in embedding_vector) + "]"
+
     conn = get_connection()
     try:
         cursor = conn.cursor()
