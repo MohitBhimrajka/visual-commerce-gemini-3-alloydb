@@ -204,56 +204,52 @@ echo ""
 echo "🏗️  Step 2/3: AlloyDB Connection Details..."
 echo ""
 
-if [ -z "$ALLOYDB_INSTANCE_URI" ]; then
-    # Try to find existing instances
-    echo "🔍 Checking for existing AlloyDB instances..."
+if [ -n "$ALLOYDB_REGION" ] && [ -n "$ALLOYDB_CLUSTER" ] && [ -n "$ALLOYDB_INSTANCE" ]; then
+    echo "✅ AlloyDB details found (loaded from .env)"
+else
+    echo "🔍 Detecting AlloyDB instances..."
     INSTANCES=$(gcloud alloydb instances list --format="value(name)" 2>/dev/null || true)
 
     if [ -n "$INSTANCES" ]; then
         INSTANCE_COUNT=$(echo "$INSTANCES" | wc -l | tr -d ' ')
-        echo ""
-        echo "Found $INSTANCE_COUNT existing instance(s):"
-        echo ""
-        i=1
-        while IFS= read -r instance; do
-            echo "  $i) $instance"
-            i=$((i + 1))
-        done <<< "$INSTANCES"
-        echo ""
-        read -p "Select instance (or press Enter to skip): " CHOICE
 
-        if [ -n "$CHOICE" ] && [ "$CHOICE" -le "$INSTANCE_COUNT" ] 2>/dev/null; then
-            ALLOYDB_INSTANCE_URI=$(echo "$INSTANCES" | sed -n "${CHOICE}p")
-            # Extract components from URI for .env
-            ALLOYDB_REGION=$(echo "$ALLOYDB_INSTANCE_URI" | sed -n 's|.*/locations/\([^/]*\)/.*|\1|p')
-            ALLOYDB_CLUSTER=$(echo "$ALLOYDB_INSTANCE_URI" | sed -n 's|.*/clusters/\([^/]*\)/.*|\1|p')
-            ALLOYDB_INSTANCE=$(echo "$ALLOYDB_INSTANCE_URI" | sed -n 's|.*/instances/\([^/]*\)$|\1|p')
-            echo "✅ Using: $ALLOYDB_INSTANCE_URI"
+        if [ "$INSTANCE_COUNT" -eq 1 ]; then
+            SELECTED_URI="$INSTANCES"
+            echo "✅ Found instance: $SELECTED_URI"
+        else
+            echo ""
+            echo "Found $INSTANCE_COUNT instances:"
+            echo ""
+            i=1
+            while IFS= read -r instance; do
+                echo "  $i) $instance"
+                i=$((i + 1))
+            done <<< "$INSTANCES"
+            echo ""
+            read -p "Select instance: " CHOICE
+            SELECTED_URI=$(echo "$INSTANCES" | sed -n "${CHOICE}p")
         fi
-    fi
 
-    if [ -z "$ALLOYDB_INSTANCE_URI" ]; then
-        echo ""
-        echo "⏭️  No instance selected — placeholders will be set in .env."
-        echo "   After provisioning AlloyDB, fill in the values in .env."
-        ALLOYDB_REGION="us-central1"
-        ALLOYDB_CLUSTER="my-alloydb-cluster"
-        ALLOYDB_INSTANCE="my-alloydb-instance"
+        # Extract components from URI
+        ALLOYDB_REGION=$(echo "$SELECTED_URI" | sed -n 's|.*/locations/\([^/]*\)/.*|\1|p')
+        ALLOYDB_CLUSTER=$(echo "$SELECTED_URI" | sed -n 's|.*/clusters/\([^/]*\)/.*|\1|p')
+        ALLOYDB_INSTANCE=$(echo "$SELECTED_URI" | sed -n 's|.*/instances/\([^/]*\)$|\1|p')
+        echo "   Region:   $ALLOYDB_REGION"
+        echo "   Cluster:  $ALLOYDB_CLUSTER"
+        echo "   Instance: $ALLOYDB_INSTANCE"
+    else
+        echo "⚠️  No AlloyDB instances found."
+        echo "   Please provision AlloyDB first (see codelab), then re-run this script."
+        exit 1
     fi
-
-    # Get password if we have a real instance
-    if [ -n "$ALLOYDB_INSTANCE_URI" ] && [ -z "$DB_PASS" ]; then
-        echo ""
-        read -s -p "Enter your AlloyDB database password: " DB_PASS
-        echo ""
-        export DB_PASS
-    fi
-else
-    echo "✅ AlloyDB instance URI found (loaded from .env)"
 fi
 
+# Get database password
 if [ -z "$DB_PASS" ]; then
-    DB_PASS="your-alloydb-password"
+    echo ""
+    read -s -p "Enter your AlloyDB database password: " DB_PASS
+    echo ""
+    export DB_PASS
 fi
 
 echo "✅ AlloyDB connection configured"
