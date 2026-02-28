@@ -15,6 +15,14 @@ The Vision Agent needs a Gemini API key to access Gemini 3 Flash with Code Execu
 3. Copy the API key to your clipboard
 4. Keep the tab open - you'll paste this key in the next step
 
+## Set Your Project
+
+Confirm your GCP project is set:
+
+```bash
+gcloud config set project <YOUR_PROJECT_ID>
+```
+
 ## Run Setup Script
 
 In the Cloud Shell terminal at the bottom of your screen, run:
@@ -30,35 +38,24 @@ sh setup.sh
 - Validates your environment (gcloud, Python, project settings)
 - Prompts you for your Gemini API key (paste the key from previous step)
 - Checks and enables required APIs
-- Auto-detects your AlloyDB instance URI (or prompts you to enter it)
+- Auto-detects your AlloyDB instance and extracts region, cluster, and instance name
+- Asks for your database password
 - Creates the `.env` configuration file
+- Installs Python dependencies
 
 **If you need to restart:**
 - You can safely re-run `sh setup.sh` — it loads existing `.env` values
 
-## Provision AlloyDB (if needed)
+## Enable Public IP on AlloyDB
 
-If you don't have an AlloyDB instance yet, provision one using the setup tool:
+Enable Public IP so the Python Connector can connect from Cloud Shell:
 
-1. In a new terminal tab, clone and run:
+1. Go to [AlloyDB Console](https://console.cloud.google.com/alloydb/clusters)
+2. Click your instance → **Edit** → Enable **Public IP** → **Update**
 
-```bash
-git clone https://github.com/AbiramiSukumaran/easy-alloydb-setup.git
-cd easy-alloydb-setup
-sh run.sh
-```
+> **💡 Note:** The AlloyDB Python Connector handles authentication and encryption — you don't need to add any authorized external networks.
 
-2. Open **Web Preview** (👁️) → **Preview on port 8080**
-3. Enter your **Project ID**, select **Region** (e.g., `us-central1`), set a **Password**
-4. Click **Start Deployment** (~15 minutes)
-
-> **⚠️ SAVE YOUR PASSWORD** — you'll need it for AlloyDB Studio and your `.env` file.
-
-5. Once done, **enable Public IP** on your AlloyDB instance:
-   - Go to [AlloyDB Console](https://console.cloud.google.com/alloydb/clusters)
-   - Click your instance → **Edit** → Enable **Public IP** → **Update**
-
-6. Grant Vertex AI permissions:
+## Grant Vertex AI Permissions
 
 ```bash
 PROJECT_ID=$(gcloud config get-value project)
@@ -66,8 +63,6 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:service-$(gcloud projects describe $PROJECT_ID --format="value(projectNumber)")@gcp-sa-alloydb.iam.gserviceaccount.com" \
   --role="roles/aiplatform.user"
 ```
-
-7. Update your `.env` file with the AlloyDB details, then re-run `sh setup.sh`
 
 ## Set Up the Database
 
@@ -148,7 +143,7 @@ Time to awaken the agent's memory! The Supplier Agent needs to search parts usin
 
 **Open the file:** `agents/supplier-agent/inventory.py`
 
-**Find the TODO** in the `find_supplier()` function (around line 60-70) and replace the placeholder:
+**Find the TODO** in the `find_supplier()` function (around line 70-80) and replace the placeholder:
 
 ```python
 sql = """
@@ -158,12 +153,12 @@ FROM inventory
 ORDER BY part_embedding <=> %s::vector
 LIMIT 1;
 """
-cursor.execute(sql, (embedding_vector, embedding_vector))
+cursor.execute(sql, (embedding_str, embedding_str))
 ```
 
 **Save the file** (Ctrl+S or Cmd+S)
 
-The `<=>` operator performs cosine distance calculation using AlloyDB's ScaNN index.
+The `<=>` operator performs cosine distance calculation using AlloyDB's ScaNN index. Note: we use `embedding_str` (the string-formatted vector) because pg8000 requires it.
 
 ## Enable Vision (Code Change 2)
 
@@ -180,33 +175,11 @@ Now let's awaken the agent's eyes! The Vision Agent uses Gemini 3 Flash with **C
 
 Code Execution allows Gemini to write Python to count items deterministically instead of guessing.
 
-## Create the Agent Card
+## Review the Agent Card
 
-The A2A Protocol uses **agent cards** for discovery.
+The A2A Protocol uses **agent cards** for discovery. The card is already included at `agents/supplier-agent/agent_card.json`.
 
-**Copy the skeleton:**
-```bash
-cp agents/supplier-agent/agent_card_skeleton.json agents/supplier-agent/agent_card.json
-```
-
-**Open** `agents/supplier-agent/agent_card.json` and **replace contents** with:
-
-```json
-{
-  "name": "Acme Supplier Agent",
-  "description": "Autonomous fulfillment for industrial parts via AlloyDB ScaNN.",
-  "version": "1.0.0",
-  "skills": [{
-    "id": "search_inventory",
-    "name": "Search Inventory",
-    "description": "Searches warehouse database using AlloyDB ScaNN vector search.",
-    "tags": ["inventory", "search", "alloydb"],
-    "examples": ["Find stock for Industrial Widget X-9", "Who supplies ball bearings?"]
-  }]
-}
-```
-
-**Save the file**
+Open it to review — feel free to customize the name, description, or examples.
 
 ## Start All Services
 

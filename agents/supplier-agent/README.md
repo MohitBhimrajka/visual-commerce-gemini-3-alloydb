@@ -46,7 +46,7 @@ FROM inventory
 ORDER BY part_embedding <=> %s::vector
 LIMIT 1;
 """
-cursor.execute(sql, (embedding_vector, embedding_vector))
+cursor.execute(sql, (embedding_str, embedding_str))
 ```
 
 > **Critical:** The `::vector` cast is mandatory when using `%s` placeholders with vector operators. Without it, PostgreSQL throws: `operator does not exist: vector <=> double precision`
@@ -79,7 +79,7 @@ export DB_PASS='your-password'
 export ALLOYDB_REGION='us-central1'
 export ALLOYDB_CLUSTER='my-cluster'
 export ALLOYDB_INSTANCE='my-instance'
-uvicorn main:asgi_app --host 0.0.0.0 --port 8082
+uvicorn main:app --host 0.0.0.0 --port 8082
 ```
 
 ## Database Connection
@@ -102,12 +102,7 @@ conn = connector.connect(
 
 ## A2A Agent Card
 
-Create from skeleton:
-
-```bash
-cp agent_card_skeleton.json agent_card.json
-# Edit with your agent details
-```
+The agent card is already included at `agent_card.json`. Review and customize as needed.
 
 Exposed at `http://localhost:8082/.well-known/agent-card.json`:
 
