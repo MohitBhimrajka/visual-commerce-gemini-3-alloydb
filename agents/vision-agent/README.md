@@ -20,7 +20,7 @@ Instead of predicting, this agent:
 ## Technology
 
 - **Gemini 3 Flash** (`gemini-3-flash-preview`) with:
-  - `thinking_level="LOW"` - Fast reasoning
+  - `thinking_level="MINIMAL"` - Fast reasoning
   - `ToolCodeExecution` - Sandboxed Python execution
 - **Vertex AI SDK** - `google-genai` package
 - **A2A Protocol** - Agent discovery and communication
@@ -39,7 +39,7 @@ Instead of predicting, this agent:
 # 1. Configure Gemini with code execution
 config = types.GenerateContentConfig(
     temperature=0,
-    thinking_level="LOW",
+    thinking_level="MINIMAL",
     tools=[types.Tool(code_execution=types.ToolCodeExecution())]
 )
 
@@ -72,7 +72,7 @@ sh run.sh
 ```bash
 pip install -r requirements.txt
 export GOOGLE_CLOUD_PROJECT=$(gcloud config get-value project)
-uvicorn main:asgi_app --host 0.0.0.0 --port 8081
+uvicorn main:app --host 0.0.0.0 --port 8081
 ```
 
 ### Standalone Testing
@@ -144,7 +144,7 @@ thinking_level="LOW"
 Cost tradeoff:
 - `HIGH`: Most accurate, slowest, most expensive
 - `MEDIUM`: Balanced
-- `LOW`: Fastest (used in this codelab)
+- `MINIMAL`: Fastest (used in this codelab)
 
 ### Change Model
 

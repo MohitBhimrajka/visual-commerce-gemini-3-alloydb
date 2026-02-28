@@ -64,12 +64,12 @@ sh run.sh
 # Start Vision Agent
 cd vision-agent
 pip install -r requirements.txt
-uvicorn main:asgi_app --host 0.0.0.0 --port 8081
+uvicorn main:app --host 0.0.0.0 --port 8081
 
 # Start Supplier Agent
 cd ../supplier-agent
 pip install -r requirements.txt
-uvicorn main:asgi_app --host 0.0.0.0 --port 8082
+uvicorn main:app --host 0.0.0.0 --port 8082
 ```
 
 ## A2A Protocol

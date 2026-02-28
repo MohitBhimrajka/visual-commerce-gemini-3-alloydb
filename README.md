@@ -5,7 +5,7 @@ Build an **agentic supply chain system** that "sees" physical inventory using Ge
 ## What You'll Build
 
 A multi-agent system featuring:
-- **Vision Agent**: Uses Gemini 3 Flash (LOW thinking) to count inventory items deterministically via code execution, plus Gemini 2.5 Flash Lite for smart query generation with structured outputs
+- **Vision Agent**: Uses Gemini 3 Flash (MINIMAL thinking) to count inventory items deterministically via code execution, plus Gemini 2.5 Flash Lite for smart query generation with structured outputs
 - **Supplier Agent**: Searches millions of parts using AlloyDB ScaNN vector search with real semantic embeddings (Vertex AI text-embedding-005)
 - **Control Tower**: Real-time WebSocket UI with automatic image compression for orchestrating autonomous workflows
 
@@ -15,7 +15,7 @@ A multi-agent system featuring:
 
 **Key Components:**
 - **Control Tower (port 8080):** WebSocket-based UI with automatic image compression for real-time orchestration
-- **Vision Agent (port 8081):** Gemini 3 Flash (LOW thinking) with Code Execution + Gemini 2.5 Flash Lite for query generation (API key)
+- **Vision Agent (port 8081):** Gemini 3 Flash (MINIMAL thinking) with Code Execution + Gemini 2.5 Flash Lite for query generation (API key)
 - **Supplier Agent (port 8082):** AlloyDB ScaNN vector search with real semantic embeddings from Vertex AI (GCP credentials)
 - **AlloyDB AI:** Enterprise PostgreSQL with ScaNN index and text-embedding-005 for semantic understanding
 - **A2A Protocol:** Dynamic agent discovery via `/.well-known/agent-card.json`
@@ -98,7 +98,7 @@ visual-commerce-gemini-3-alloydb/
 
 ### `sh run.sh`
 
-1. **Launches Vision Agent** — Port 8081 (Gemini 3 Flash LOW thinking + Gemini 2.5 Flash Lite query generation)
+1. **Launches Vision Agent** — Port 8081 (Gemini 3 Flash MINIMAL thinking + Gemini 2.5 Flash Lite query generation)
 2. **Launches Supplier Agent** — Port 8082 (AlloyDB ScaNN via Python Connector)
 3. **Starts Control Tower** — Port 8080 (FastAPI + WebSocket UI with automatic image compression)
 
@@ -123,7 +123,7 @@ This handles IAM authentication, SSL/TLS, and connection routing automatically.
 
 ## Key Technologies
 
-- **Gemini 3 Flash** — AI model with LOW thinking level and code execution for deterministic vision analysis
+- **Gemini 3 Flash** — AI model with MINIMAL thinking level and code execution for deterministic vision analysis
 - **Gemini 2.5 Flash Lite** — Fast LLM for semantic query generation with structured outputs (Pydantic models)
 - **AlloyDB AI** — PostgreSQL-compatible database with ScaNN vector search (10x faster than HNSW)
 - **AlloyDB Python Connector** — Secure connection without Auth Proxy (IAM auth, managed SSL)
