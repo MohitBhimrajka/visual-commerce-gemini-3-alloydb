@@ -74,6 +74,12 @@ fi
 # Delete AlloyDB Cluster
 # ============================================================================
 echo ""
+
+# Guard: Don't delete shared AlloyDB instances
+if [ -n "$ALLOYDB_PROJECT" ] && [ "$ALLOYDB_PROJECT" != "$GOOGLE_CLOUD_PROJECT" ]; then
+    echo "ℹ️  AlloyDB is in a shared project ($ALLOYDB_PROJECT) — skipping cluster deletion."
+    echo "   Contact the project owner to manage the shared instance."
+else
 echo "🗑️  Checking for AlloyDB cluster..."
 
 delete_cluster() {
@@ -110,6 +116,7 @@ else
         echo "   ℹ️  No clusters found in this project (already deleted or never created)"
     fi
 fi
+fi # end shared-instance guard
 
 # ============================================================================
 # Delete Cloud Run Services (if deployed)

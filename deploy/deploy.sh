@@ -97,7 +97,7 @@ gcloud services enable run.googleapis.com \
     --project "$PROJECT_ID" --quiet
 
 # ── Grant required IAM roles ────────────────────────────────
-echo "🔑 Granting IAM roles to Cloud Build service account..."
+echo "🔑 Granting IAM roles..."
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
 SA_EMAIL="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 
@@ -107,14 +107,28 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --role="roles/run.builder" \
     --quiet 2>/dev/null || true
 
-# AlloyDB Client — required for the Python Connector at runtime
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-    --member="serviceAccount:$SA_EMAIL" \
-    --role="roles/alloydb.client" \
-    --quiet 2>/dev/null || true
+# AlloyDB Client — only needed if NOT using shared SA key
+ALLOYDB_TARGET_PROJECT="${ALLOYDB_PROJECT:-$PROJECT_ID}"
+if [ -n "$ALLOYDB_SA_KEY_PATH" ] && [ -f "$ALLOYDB_SA_KEY_PATH" ]; then
+    echo "   ℹ️  Using shared SA key for AlloyDB auth (no IAM grant needed)"
+elif [ "$ALLOYDB_TARGET_PROJECT" = "$PROJECT_ID" ]; then
+    gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+        --member="serviceAccount:$SA_EMAIL" \
+        --role="roles/alloydb.client" \
+        --quiet 2>/dev/null || true
+fi
 
-echo "✅ IAM roles granted (may take ~1 min to propagate)"
+echo "✅ IAM roles configured"
 echo ""
+
+# ── Prepare SA key for Cloud Run ─────────────────────────────
+SA_KEY_B64=""
+if [ -n "$ALLOYDB_SA_KEY_PATH" ] && [ -f "$ALLOYDB_SA_KEY_PATH" ]; then
+    echo "📦 Encoding SA key for Cloud Run..."
+    SA_KEY_B64=$(base64 < "$ALLOYDB_SA_KEY_PATH" | tr -d '\n')
+    echo "✅ SA key encoded (${#SA_KEY_B64} chars)"
+    echo ""
+fi
 
 # ── Deploy ───────────────────────────────────────────────────
 gcloud run deploy "$SERVICE_NAME" \
@@ -129,6 +143,8 @@ gcloud run deploy "$SERVICE_NAME" \
 DEPLOYER_NAME="$DEPLOYER_NAME",\
 GEMINI_API_KEY="$GEMINI_API_KEY",\
 GOOGLE_CLOUD_PROJECT="$PROJECT_ID",\
+ALLOYDB_PROJECT="${ALLOYDB_PROJECT:-}",\
+ALLOYDB_SA_KEY_B64="${SA_KEY_B64}",\
 ALLOYDB_REGION="$ALLOYDB_REGION",\
 ALLOYDB_CLUSTER="$ALLOYDB_CLUSTER",\
 ALLOYDB_INSTANCE="$ALLOYDB_INSTANCE",\

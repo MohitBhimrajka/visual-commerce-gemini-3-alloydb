@@ -4,6 +4,8 @@ Primary path: Run SQL directly in AlloyDB Studio (see codelab).
 This script is for convenience if you prefer programmatic seeding.
 Requires: ALLOYDB_INSTANCE_URI and DB_PASS in environment.
 """
+import base64
+import json
 import os
 import sys
 import time
@@ -19,15 +21,30 @@ load_dotenv(find_dotenv(usecwd=True))
 SCRIPT_DIR = Path(__file__).parent
 SEED_SQL = SCRIPT_DIR / "seed_data.sql"
 
-# Initialize AlloyDB Connector
-connector = Connector()
+# Initialize AlloyDB Connector (with optional shared SA key)
+def _init_connector():
+    creds = None
+    sa_key_b64 = os.environ.get("ALLOYDB_SA_KEY_B64", "")
+    sa_key_path = os.environ.get("ALLOYDB_SA_KEY_PATH", "")
+    if sa_key_b64:
+        from google.oauth2 import service_account
+        creds = service_account.Credentials.from_service_account_info(
+            json.loads(base64.b64decode(sa_key_b64))
+        )
+    elif sa_key_path and os.path.exists(sa_key_path):
+        from google.oauth2 import service_account
+        creds = service_account.Credentials.from_service_account_file(sa_key_path)
+    return Connector(credentials=creds)
+
+connector = _init_connector()
 
 
 def get_connection():
     """Connect to AlloyDB via the Python Connector."""
     inst_uri = os.environ.get("ALLOYDB_INSTANCE_URI", "")
     if not inst_uri:
-        project = os.environ.get("GOOGLE_CLOUD_PROJECT", "")
+        # ALLOYDB_PROJECT allows cross-project connections (shared instance scenarios)
+        project = os.environ.get("ALLOYDB_PROJECT", os.environ.get("GOOGLE_CLOUD_PROJECT", ""))
         region = os.environ.get("ALLOYDB_REGION", "")
         cluster = os.environ.get("ALLOYDB_CLUSTER", "")
         instance = os.environ.get("ALLOYDB_INSTANCE", "")

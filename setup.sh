@@ -238,9 +238,39 @@ else
         echo "   Cluster:  $ALLOYDB_CLUSTER"
         echo "   Instance: $ALLOYDB_INSTANCE"
     else
-        echo "⚠️  No AlloyDB instances found."
-        echo "   Please provision AlloyDB first (see codelab), then re-run this script."
-        exit 1
+        echo "⚠️  No AlloyDB instances found in your project."
+        echo ""
+        echo "   Options:"
+        echo "   1) Using a SHARED AlloyDB instance (workshop/codelab)?"
+        echo "      Enter the details provided by your instructor."
+        echo "   2) Provision your own AlloyDB first (see codelab)."
+        echo ""
+        read -p "   Use a shared instance? (y/N): " -n 1 -r
+        echo ""
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            read -p "   AlloyDB Project ID (owner's project): " ALLOYDB_PROJECT
+            read -p "   Region [us-central1]: " ALLOYDB_REGION
+            ALLOYDB_REGION="${ALLOYDB_REGION:-us-central1}"
+            read -p "   Cluster name: " ALLOYDB_CLUSTER
+            read -p "   Instance name: " ALLOYDB_INSTANCE
+            echo ""
+            echo "   📁 Service Account Key (provided by your instructor)"
+            read -p "   Path to SA key JSON file: " ALLOYDB_SA_KEY_PATH
+            if [ -n "$ALLOYDB_SA_KEY_PATH" ] && [ ! -f "$ALLOYDB_SA_KEY_PATH" ]; then
+                echo "   ⚠️  File not found: $ALLOYDB_SA_KEY_PATH"
+                echo "   Make sure you've downloaded the key file first."
+                exit 1
+            fi
+            echo "   ✅ Shared instance configured"
+            echo "      Project:  $ALLOYDB_PROJECT"
+            echo "      Region:   $ALLOYDB_REGION"
+            echo "      Cluster:  $ALLOYDB_CLUSTER"
+            echo "      Instance: $ALLOYDB_INSTANCE"
+            [ -n "$ALLOYDB_SA_KEY_PATH" ] && echo "      SA Key:    $ALLOYDB_SA_KEY_PATH"
+        else
+            echo "   Please provision AlloyDB first (see codelab), then re-run this script."
+            exit 1
+        fi
     fi
 fi
 
@@ -278,9 +308,11 @@ GOOGLE_CLOUD_PROJECT=$PROJECT
 # Get yours at: https://aistudio.google.com/apikey
 GEMINI_API_KEY=$GEMINI_API_KEY
 
-# ── AlloyDB (fill these in after provisioning) ───────
-# Update these 3 values from your easy-alloydb-setup output.
-# The instance URI is built from them automatically.
+# ── AlloyDB ──────────────────────────────────────────
+# ALLOYDB_PROJECT: Set only for shared/workshop instances
+# (when AlloyDB is in a different project than yours)
+ALLOYDB_PROJECT=${ALLOYDB_PROJECT:-}
+ALLOYDB_SA_KEY_PATH=${ALLOYDB_SA_KEY_PATH:-}
 ALLOYDB_REGION=$ALLOYDB_REGION
 ALLOYDB_CLUSTER=$ALLOYDB_CLUSTER
 ALLOYDB_INSTANCE=$ALLOYDB_INSTANCE

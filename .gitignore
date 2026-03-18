@@ -33,3 +33,12 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+
+# Service account keys (NEVER commit these)
+*-sa-key.json
+*.iam.gserviceaccount.com.json
+4e5f00e9-*.json
+
+# Test artifacts
+test_shared_alloydb.py
+test_shared_alloydb.env

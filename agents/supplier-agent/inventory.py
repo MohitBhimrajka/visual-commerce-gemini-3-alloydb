@@ -3,9 +3,11 @@ Supplier Agent: AlloyDB vector search for finding parts and suppliers.
 Uses ScaNN (<=> cosine distance) for high-speed semantic retrieval.
 Connects via AlloyDB Python Connector (no Auth Proxy needed).
 """
+import base64
 import json
 import logging
 import os
+import tempfile
 from pathlib import Path
 
 from dotenv import load_dotenv, find_dotenv
@@ -22,10 +24,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize AlloyDB Connector once (reuse across requests)
-# Use 'lazy' refresh strategy for serverless environments (Cloud Run)
-# to avoid CPU throttling errors during background refresh
-connector = Connector(refresh_strategy="lazy")
+
+def _init_connector():
+    """Initialize AlloyDB Connector, optionally using a shared service account key."""
+    creds = None
+
+    # Option 1: Base64-encoded SA key (for Cloud Run env vars)
+    sa_key_b64 = os.environ.get("ALLOYDB_SA_KEY_B64", "")
+    # Option 2: Path to SA key JSON file (for local/Cloud Shell)
+    sa_key_path = os.environ.get("ALLOYDB_SA_KEY_PATH", "")
+
+    if sa_key_b64:
+        from google.oauth2 import service_account
+        key_data = json.loads(base64.b64decode(sa_key_b64))
+        creds = service_account.Credentials.from_service_account_info(key_data)
+        logger.info("AlloyDB Connector: using shared SA key (base64)")
+    elif sa_key_path and os.path.exists(sa_key_path):
+        from google.oauth2 import service_account
+        creds = service_account.Credentials.from_service_account_file(sa_key_path)
+        logger.info(f"AlloyDB Connector: using shared SA key ({sa_key_path})")
+    else:
+        logger.info("AlloyDB Connector: using Application Default Credentials")
+
+    return Connector(credentials=creds, refresh_strategy="lazy")
+
+
+# Initialize connector once (reuse across requests)
+connector = _init_connector()
 
 
 def get_connection():
@@ -33,7 +58,9 @@ def get_connection():
     # Build instance URI from component env vars (or use pre-built if set)
     inst_uri = os.environ.get("ALLOYDB_INSTANCE_URI", "")
     if not inst_uri:
-        project = os.environ.get("GOOGLE_CLOUD_PROJECT", "")
+        # ALLOYDB_PROJECT allows cross-project connections (shared instance scenarios)
+        # Falls back to GOOGLE_CLOUD_PROJECT for single-project setups
+        project = os.environ.get("ALLOYDB_PROJECT", os.environ.get("GOOGLE_CLOUD_PROJECT", ""))
         region = os.environ.get("ALLOYDB_REGION", "")
         cluster = os.environ.get("ALLOYDB_CLUSTER", "")
         instance = os.environ.get("ALLOYDB_INSTANCE", "")
