@@ -245,9 +245,9 @@ else
         echo "      Enter the details provided by your instructor."
         echo "   2) Provision your own AlloyDB first (see codelab)."
         echo ""
-        read -p "   Use a shared instance? (y/N): " -n 1 -r
+        read -p "   Use a shared instance? (1/y/N): " -n 1 -r
         echo ""
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if [[ $REPLY =~ ^[1Yy]$ ]]; then
             read -p "   AlloyDB Project ID (owner's project): " ALLOYDB_PROJECT
             read -p "   Region [us-central1]: " ALLOYDB_REGION
             ALLOYDB_REGION="${ALLOYDB_REGION:-us-central1}"
