@@ -31,9 +31,14 @@ def _init_connector():
         creds = service_account.Credentials.from_service_account_info(
             json.loads(base64.b64decode(sa_key_b64))
         )
-    elif sa_key_path and os.path.exists(sa_key_path):
-        from google.oauth2 import service_account
-        creds = service_account.Credentials.from_service_account_file(sa_key_path)
+    elif sa_key_path:
+        if not os.path.isabs(sa_key_path):
+            env_file = find_dotenv(usecwd=True)
+            if env_file:
+                sa_key_path = os.path.join(os.path.dirname(env_file), sa_key_path)
+        if os.path.exists(sa_key_path):
+            from google.oauth2 import service_account
+            creds = service_account.Credentials.from_service_account_file(sa_key_path)
     return Connector(credentials=creds)
 
 connector = _init_connector()

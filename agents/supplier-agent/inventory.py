@@ -39,10 +39,18 @@ def _init_connector():
         key_data = json.loads(base64.b64decode(sa_key_b64))
         creds = service_account.Credentials.from_service_account_info(key_data)
         logger.info("AlloyDB Connector: using shared SA key (base64)")
-    elif sa_key_path and os.path.exists(sa_key_path):
-        from google.oauth2 import service_account
-        creds = service_account.Credentials.from_service_account_file(sa_key_path)
-        logger.info(f"AlloyDB Connector: using shared SA key ({sa_key_path})")
+    elif sa_key_path:
+        # Resolve relative paths against the .env file's directory (repo root)
+        if not os.path.isabs(sa_key_path):
+            env_file = find_dotenv(usecwd=True)
+            if env_file:
+                sa_key_path = os.path.join(os.path.dirname(env_file), sa_key_path)
+        if os.path.exists(sa_key_path):
+            from google.oauth2 import service_account
+            creds = service_account.Credentials.from_service_account_file(sa_key_path)
+            logger.info(f"AlloyDB Connector: using shared SA key ({sa_key_path})")
+        else:
+            logger.warning(f"AlloyDB Connector: SA key not found at {sa_key_path}, falling back to ADC")
     else:
         logger.info("AlloyDB Connector: using Application Default Credentials")
 
